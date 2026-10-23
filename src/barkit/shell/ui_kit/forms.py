@@ -258,7 +258,7 @@ def settings_section(
     几何全部走 ``metrics``（圆角 ``RADIUS_SM`` 微圆角、内容区内边距 ``PAD_CARD``、
     标题栏内边距 ``PAD_SECTION_HEAD``、段距 ``GAP_SM``）。**卡片是实心 surface ＋ 1px
     描边，没有软投影**：投影 2026-09-21 已判丑并删除（判据见
-    `docs/log/2026-09-21-设置窗观感返工.md`），别再挂 ``QGraphicsEffect``。
+    `内部记录（观感返工）`），别再挂 ``QGraphicsEffect``。
     """
     card = Card(radius=metrics.RADIUS_SM, parent=parent)
     outer = QVBoxLayout(card)

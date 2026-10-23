@@ -31,19 +31,19 @@ MAX_TASKBOARD_LINE = 800      # 单行上限：一条任务一行，超了就是
 # 命中即判「堆日志」的过程/验收类签名（合规不误报：只拦客观输出，不拦 §/Dxx/路径指针）
 TASKBOARD_LOG_PATTERNS = [
     (re.compile(r"\b\d+\s*(passed|failed)\b", re.I),
-     "含测试结论数字（passed/failed 计数）—— 这是日志，搬去 docs/log/"),
+     "含测试结论数字（passed/failed 计数）—— 这是日志，搬去内部日志目录"),
     (re.compile(r"\bRC\s*=\s*\d+"),
-     "含门禁返回码（RC=）—— 这是日志输出，搬去 docs/log/"),
+     "含门禁返回码（RC=）—— 这是日志输出，搬去内部日志目录"),
     (re.compile(r"\b(return code|exit code)\b[^\n]*\d+", re.I),
-     "含退出码数字 —— 这是日志输出，搬去 docs/log/"),
+     "含退出码数字 —— 这是日志输出，搬去内部日志目录"),
     (re.compile(r"pyflakes[\s:*＝=]{0,3}\d+", re.I),
      "含 pyflakes 基线数字 —— 这是日志，搬去 guides/验证与自证.md"),
     (re.compile(r"(门禁自证|反向验证|节点集|全量\s*\*\*\d+)"),
-     "含自证/验收报告用语 —— 这是日志，搬去 docs/log/"),
+     "含自证/验收报告用语 —— 这是日志，搬去内部日志目录"),
 ]
 
 # 纳入校验的根级项目文档
-ROOT_DOCS = ["README.md", "PROJECT_STRUCTURE.md", "]
+ROOT_DOCS = ["README.md", "PROJECT_STRUCTURE.md"]
 DOC_ROOT = ROOT / "docs"
 # 不校验的子目录（非文档资源 / 中间态）
 SKIP_DIRS = {"plans", "design"}
@@ -117,11 +117,11 @@ def lint_taskboard(doc, text, errors):
     """任务板专用门禁：只装「改了什么 + 意味着什么」一句话 + 指针，不许堆日志。"""
     size = len(text.encode("utf-8"))
     if size > MAX_TASKBOARD_BYTES:
-        errors.append("任务板超 %d 字节（当前 %d）—— 已退回堆日志状态；过程/根因/测试数字搬去 docs/log/"
+        errors.append("任务板超 %d 字节（当前 %d）—— 已退回堆日志状态；过程/根因/测试数字搬去内部日志目录"
                       % (MAX_TASKBOARD_BYTES, size))
     for i, line in enumerate(text.splitlines(), 1):
         if len(line) > MAX_TASKBOARD_LINE:
-            errors.append("第 %d 行超 %d 字符（%d）—— 疑似把一段叙述压进了一行；拆成「改了什么+意味着什么」一句话 + docs/log/ 指针"
+            errors.append("第 %d 行超 %d 字符（%d）—— 疑似把一段叙述压进了一行；拆成「改了什么+意味着什么」一句话 + 内部日志指针"
                           % (i, MAX_TASKBOARD_LINE, len(line)))
         for pat, msg in TASKBOARD_LOG_PATTERNS:
             if pat.search(line):
@@ -163,7 +163,7 @@ def lint_doc(doc, errors):
         errors.append("超 300 行（%d 行）" % lines)
     if doc.name == "current-task.md":
         # 唯一常驻任务板：只装「改了什么 + 意味着什么」一句话 + 指针，不许堆日志。
-        # （docs/log/ 下的冻结台账与 ROADMAP 是路线图，不在此门禁范围。）
+        # （内部日志下的冻结台账与内部路线图是路线图，不在此门禁范围。）
         lint_taskboard(doc, text, errors)
     check_registration(doc, errors)
     check_pointers(doc, errors)

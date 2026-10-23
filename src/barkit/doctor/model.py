@@ -1,7 +1,7 @@
 """doctor/model：自检结果的**唯一数据结构**与逐条隔离的执行器。
 
 零依赖（标准库之外什么都不 import），因此可以被任何层安全引用，也是
-``doctor`` 引擎能保持 Qt-free 的地基（见 ``docs/log/2026-09-17-barkit-doctor.md`` §4）。
+``doctor`` 引擎能保持 Qt-free 的地基（见 ``内部 doctor 设计记录`` §4）。
 
 级别只有四个，语义写死：
 

@@ -11,7 +11,7 @@
 刻意不做的一件（是「今天做不得」，不是漏了）：
 
 - **毛玻璃**。真模糊只能借 ``NSVisualEffectView``（Qt 不暴露 vibrancy），本仓**从未真机验过**，
-  方案封存在 ``docs/log/2026-09-20-liquid-glass全案归档.md``。要接它，第一步是让
+  方案封存在 ``内部记录（liquid-glass）``。要接它，第一步是让
   :meth:`paintEvent` 别填实心底 —— 半透明压在实心 ``surface`` 上等于同色混合（``Card`` 的
   玻璃模式 2026-09-21 因此整体删除，实测只差 3/255）。
 
@@ -325,7 +325,7 @@ class Overlay(QWidget):
         次序（2026-09-22 修正 ＋ 2026-10-15 更正）：``show()`` 在前、原生保险紧随其后。
         层级必须压在 ``show()`` **之后** —— ``show`` 会把 ``WindowStaysOnTopHint`` 重新落
         一遍，原生层级排在它之后才站得住，否则浮层会掉成普通层窗口、被目标窗口压住。
-        判据见 ``macos_window.OVERLAY_LEVEL`` 的注释与 ``log/2026-09-22-浮层置顶失效.md``。
+        判据见 ``macos_window.OVERLAY_LEVEL`` 的注释与 ``内部记录（浮层置顶）``。
 
         落位排在**最后**（2026-09-29）：位置是唯一一件「别的动作可能顺手改掉」的事，
         排在末尾才没人能覆盖它；随后 :func:`placement.verify_placement` 回读原生窗口核对。

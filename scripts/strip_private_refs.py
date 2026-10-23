@@ -36,6 +36,16 @@ TRANSFORMS: dict[str, list[tuple[re.Pattern[str], str, str]]] = {
             ", ",
             "从公开副本的 ROOT_DOCS 移除 AGENT.md（公开仓不含该文件）",
         ),
+        (
+            re.compile(r', "ROADMAP\.md", '),
+            ", ",
+            "从公开副本的 ROOT_DOCS 移除 ROADMAP.md（公开仓不含该文件）",
+        ),
+        (
+            re.compile(r'"current-task\.md"\]'),
+            '"]',
+            "从公开副本的 ROOT_DOCS 移除 current-task.md（公开仓不含该文件）",
+        ),
     ],
     "scripts/doc_pointer_allowlist.txt": [
         (

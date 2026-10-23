@@ -445,7 +445,7 @@ def test_app_entry_stays_slim():
 
 
 # ──────────────────────────────────────────────
-# `barkit doctor` 的两条边界（见 docs/log/2026-09-17-barkit-doctor.md §4）
+# `barkit doctor` 的两条边界（见 内部 doctor 设计记录 §4）
 #
 # 为什么 doctor 要单独守：它是**在环境坏掉时**才被用到的工具，所以它的入口链
 # 恰恰不能依赖那些会坏的东西。两条边界都是「方向性」的，靠自觉守不住。
@@ -605,7 +605,7 @@ def test_doctor_checks_are_read_only():
     hits = _doctor_readonly_hits(SRC)
     assert not hits, (
         "doctor 出现只读铁律的破坏点：\n" + "\n".join(hits)
-        + "\n（需要这些效果的检查请说明理由并更新 docs/log/2026-09-17-barkit-doctor.md §3）"
+        + "\n（需要这些效果的检查请说明理由并更新 内部 doctor 设计记录 §3）"
     )
 
 
@@ -2991,7 +2991,7 @@ def test_geometry_gate_passes_on_compliant_sample(tmp_path):
 # 每帧要把整棵子树重画进一张离屏位图再合成；半透明面压在设置页那层不透明 `surface` 上
 # 只差 3/255（`#FCFCFC` vs `#FFFFFF`）；内描边高光是白压白；大圆角 20 与窗口的 14、
 # 卡片自己的 1px 描边三层不同心。原门禁的对象已不存在，故换成下面三条（判据见
-# `docs/log/2026-09-21-设置窗观感返工.md`）。
+# `内部记录（观感返工）`）。
 
 
 def _drop_shadow_hits(path: Path) -> list[str]:
@@ -3917,7 +3917,7 @@ def test_plugin_settings_pages_have_no_modal_dialogs():
     模块自 2026-09-20 起同样住在**置顶**的详情卡里（``shell/detail.py::DetailForm``
     对两种形态都设 ``WindowStaysOnTopHint`` 并抬到 ``DETAIL_LEVEL``），走的是**同一条**
     嵌套事件循环链路。本轮先收的是 ``hosts_guard/manager_view.py``（9 处模态 → 0 处，
-    排期见 ``docs/plans/2026-09-20-待开发项排期.md`` §S1-a）；扩面**不留白名单**。
+    排期见 ``内部计划（待开发项排期）`` §S1-a）；扩面**不留白名单**。
 
     **仍在面外的同类写法（如实标注，不塞白名单）**：``core/permissions.py`` 的权限引导框
     （宿主侧 ``core/``，另有账）与 ``plugins/autotype/plugin.py`` 那 4 处 —— 后者按

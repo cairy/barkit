@@ -142,7 +142,7 @@ _COMMAND_PLACEHOLDER = "留空 ＝ 不执行，如 curl -sS --fail-with-body htt
 #:
 #: **为什么是摊开而不是下拉**：``QComboBox`` 的弹出列表是一个独立顶层窗口，在这台机器上
 #: 会被 macOS 归位到 iPad 虚拟屏（机制见 ``ui_kit.ChoiceBar`` 与
-#: ``log/2026-10-09-下拉弹层落屏与S1兜底.md``）。三枚芯片既不弹窗、又一屏看得全，
+#: ``内部记录（下拉弹层）``）。三枚芯片既不弹窗、又一屏看得全，
 #: 还比下拉省一次点击。
 _ASK_CHOICES = [
     (ASK_WORDS[PROMPT_CHOICE], PROMPT_CHOICE),

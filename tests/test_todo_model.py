@@ -226,7 +226,7 @@ def test_scene_adds_a_state_condition_with_on_start(tmp_path):
     """填了场景 ⇒ 多一条 ``state_is``，**并且必须一起带上 ``on_start``**。
 
     启动那一刻场景还是 ``unknown``，只判 ``state_is`` 的条件永远触发不了
-    （`docs/plans/2026-09-24-条件触发询问机制.md` §2.1）。
+    （`内部计划（条件触发询问）` §2.1）。
     """
     center = _FakeCenter()
     _plugin(tmp_path, [_item(scene="Office")], center)

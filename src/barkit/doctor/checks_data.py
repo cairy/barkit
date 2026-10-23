@@ -180,7 +180,7 @@ def _tail_lines(path: Path, limit: int) -> "tuple[list[str], str | None]":
 def check_log_tail() -> list[Result]:
     """D3：``barkit.log`` 尾部有没有 ERROR / Traceback。
 
-    这是 ``ROADMAP.md`` §4「复现时保留该时间点的日志段」那条验收的抓手：把首条
+    这是 ``内部路线图`` §4「复现时保留该时间点的日志段」那条验收的抓手：把首条
     错误连行文一起顶到眼前，用户才知道要保留哪一段。
     """
     path = paths.LOG_DIR / "barkit.log"

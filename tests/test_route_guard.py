@@ -2721,7 +2721,7 @@ def test_shipped_default_profiles_compile_like_the_old_default_rules():
     ``routes.items[].via``（那是**动作** —— 往哪一跳），``match.gateway`` 是**匹配条件**
     （在哪个网络里命中）。改前者，产物会跟着变、这条转红；改后者，产物一个字不动，
     于是这条「看着是假守、其实只是植入点选错了」。实测记录见
-    ``docs/log/2026-09-20-默认配置单一真源迁移.md``。
+    ``内部记录（配置迁移）``。
     """
     old_doc = {
         "poll": 30,

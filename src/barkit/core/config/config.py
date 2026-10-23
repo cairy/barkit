@@ -58,7 +58,7 @@ class Config(
         self.user_path = user_path if user_path is not None else paths.APP_SUPPORT / "config.yaml"
         # 首次运行补一份空用户配置（GUI 之路的默认）。**只读消费方必须关掉它**：
         # 自检 / 工具类调用「读一下配置」不该改用户家目录（`barkit doctor` 即此事，
-        # 见 docs/log/2026-09-17-barkit-doctor.md §8 R1 的只读铁律）。
+        # 见 内部 doctor 设计记录 §8 R1 的只读铁律）。
         self._create_user_file = bool(create_user_file)
         self.default_path = default_path if default_path is not None else DEFAULT_CONFIG_PATH
         # §9.5 插件默认值单一真源：各插件 ``config_schema().defaults()`` 合成层。

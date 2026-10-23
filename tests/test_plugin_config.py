@@ -1,6 +1,6 @@
 """core/plugin_config：组件配置的 typed 门面（U2 ①）。
 
-方案 → ``docs/plans/2026-10-03-配置接口统一.md``。要守的三条：
+方案 → ``内部计划（配置接口统一）``。要守的三条：
 
 1. **默认值只许有一处**：类型 / 默认值 / 取值域全部来自本组件的 ``config_schema()``，
    调用点只报键名（``test_plugins_do_not_read_their_section_by_hand`` 按 AST 守）；

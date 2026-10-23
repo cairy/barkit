@@ -260,7 +260,7 @@ class SelectionView(QGraphicsView):
     # 前一份从未被执行，是死代码；两份在**可达路径**上等价（`mousePressEvent` 保证
     # `_drag_box_index` 与 `_drag_box` 恰有一个非 None），差别只在 `_drag_start = None`
     # 落在分支内还是分支外 —— 现留的是原来**生效的那一份**（行为零变更），
-    # 2026-10-05 删死代码，见 `log/2026-10-05-生产代码pyflakes告警清零.md`。
+    # 2026-10-05 删死代码，见 `内部记录（pyflakes 清零）`。
     def mouseReleaseEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return

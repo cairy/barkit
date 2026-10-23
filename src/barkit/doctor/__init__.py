@@ -1,6 +1,6 @@
 """barkit.doctor：`barkit doctor` 的引擎 —— 环境自检。
 
-三条铁律（改本包前先读，动手细节见 ``docs/log/2026-09-17-barkit-doctor.md``）：
+三条铁律（改本包前先读，动手细节见 ``内部 doctor 设计记录``）：
 
 1. **只读**。全程唯一写盘是 A 组的可写性探针（写后即删）。不调
    ``Registry.load_all()``（会 provision ＋ start ＋ 连上守护那条会话）、

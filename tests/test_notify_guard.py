@@ -1480,7 +1480,7 @@ def test_editor_toggle_startup_failure_rolls_back_switch(tmp_path, monkeypatch, 
 # 缺陷本体：手动覆盖的自动归还条件是**信号组合变化**（decider.combo_at_toggle）；
 # 「没插 iPad ＋ 没命中规则」这种稳态下组合永不变化 ⇒ 用户点过那枚 Switch 就再也回不到
 # 自动，面板一直挂着「手动覆盖中 · 自动接管已挂起」。resume_auto_action 此前零调用方。
-# 落点为什么在设置页（而不是设计原写的面板行）见 docs/log/2026-09-18-手动覆盖归还入口.md。
+# 落点为什么在设置页（而不是设计原写的面板行）见 内部记录（手动覆盖归还）。
 # ──────────────────────────────────────────────
 
 def _manual(plugin):

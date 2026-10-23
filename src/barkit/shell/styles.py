@@ -30,7 +30,7 @@ from barkit.shell.design.tokens import TOKENS, token
 
 # 本仓无 ruff，pyflakes 不认 `# noqa`。「刻意再导出」这件事只能靠 `__all__` 告诉
 # 静态检查，否则上面那一行会被按「imported but unused」报出来（2026-10-05 起 `src/`
-# 的 pyflakes 基线为零，见 `log/2026-10-05-生产代码pyflakes告警清零.md`）。
+# 的 pyflakes 基线为零，见 `内部记录（pyflakes 清零）`）。
 __all__ = [
     "TOKENS",
     "token",

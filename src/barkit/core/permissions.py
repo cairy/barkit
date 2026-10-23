@@ -6,7 +6,7 @@
 依赖），此处原样 re-export 保持既有消费方零改动。
 
 为什么必须分开：检测可能来自 CLI 自检（`barkit doctor`，不得拖进 QtWidgets），
-引导永远是 GUI 的事。分界线见 ``docs/log/2026-09-17-barkit-doctor.md`` §4.1。
+引导永远是 GUI 的事。分界线见 ``内部 doctor 设计记录`` §4.1。
 
 引导语的**唯一真源**是 :data:`ACCESSIBILITY_GUIDE`：设置窗「维护」页的「权限」卡把它写进行内
 反馈槽，热键路径（``ensure_accessibility``）把它填进对话框 —— 两条路同源，否则

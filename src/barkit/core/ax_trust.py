@@ -7,7 +7,7 @@
 QMessageBox`` —— 于是任何只想读一个 bool 的消费方都被迫拖进整个 QtWidgets。
 
 最直接的消费方是 ``barkit doctor``：它的引擎顶层不得 import PySide6（「PySide6
-能不能导入」本身就是它的一条检查项，见 ``docs/log/2026-09-17-barkit-doctor.md`` §4.1）。
+能不能导入」本身就是它的一条检查项，见 ``内部 doctor 设计记录`` §4.1）。
 故把无 Qt 依赖的检测抽到本模块，``core/permissions.py`` 原样 re-export 本模块的
 名字 —— 两个既有消费方（``plugins/autotype/plugin.py``、``shell/settings.py``）
 零改动。
