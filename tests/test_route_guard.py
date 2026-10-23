@@ -3881,7 +3881,7 @@ def test_config_form_has_no_second_scroll_area(tmp_path, monkeypatch, qtbot):
     # 加够行数让内容高过窗口下限：否则「要不要滚」这一半测不到
     for i in range(10):
         page._on_add_item()
-        page._item_rows[-1][1].setText(f"10.9.{i}.0/24")
+        page._item_rows[-1][1].setText(f"10.209.{i}.0/24")
     qtbot.wait(1)
     # 只量**逐条行里那两格**（常显）：网卡那一段会随模式整块藏起来，藏起来的控件量不得
     wants = {w: w.sizeHint().height() for pair in page._item_rows for w in pair[1:3]}
