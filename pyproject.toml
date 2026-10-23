@@ -1,0 +1,39 @@
+[project]
+name = "barkit"
+version = "0.1.0"
+description = "macOS 菜单栏常驻个人工具集：OCR/条码识别、通知守卫、自动路由、一键输入"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6-Essentials>=6.7",
+    "PyYAML>=6.0",
+    "pyobjc-framework-Cocoa>=10.0",
+    "pyobjc-framework-Quartz>=10.0",
+    "pyobjc-framework-ApplicationServices>=10.0",
+    "mac-ocr-text",
+    "mac-barcode-read",
+    "pyobjc-framework-applicationservices>=12.2.2",
+]
+
+[project.scripts]
+barkit = "barkit.app:main"
+
+[dependency-groups]
+dev = [
+    "pyflakes>=3.4,<4",
+    "pytest>=8.0",
+    "pytest-qt>=4.5.0",
+]
+
+[tool.uv.sources]
+mac-ocr-text = { git = "https://github.com/cairy/python-skills", subdirectory = "mac-ocr-text" }
+mac-barcode-read = { git = "https://github.com/cairy/python-skills", subdirectory = "mac-barcode-read" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/barkit"]

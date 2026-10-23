@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bkGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#5E5CE6"/>
+      <stop offset="1"   stop-color="#8A5CF6"/>
+    </linearGradient>
+    <linearGradient id="bkSheen" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- 圆角方块底（squircle 观感） -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bkGrad)"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bkSheen)"/>
+  <!-- 白色条形码母题 -->
+  <g fill="#FFFFFF">
+    <rect x="11" y="22" width="6" height="20" rx="3"/>
+    <rect x="21" y="15" width="6" height="34" rx="3"/>
+    <rect x="31" y="26" width="6" height="12" rx="3"/>
+    <rect x="41" y="17" width="6" height="30" rx="3"/>
+    <rect x="51" y="23" width="6" height="18" rx="3"/>
+  </g>
+</svg>

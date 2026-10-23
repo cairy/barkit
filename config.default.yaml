@@ -1,0 +1,103 @@
+# BarKit 全量默认配置
+#
+# **本文件只保留框架级默认**：``tray.*`` / ``variables`` 与 ``plugins.<id>.enabled``
+# （插件加载门控）。各插件自己的业务配置默认值由插件声明（``config_schema()``，§9.5
+# 默认值单一真源），运行时合成、不落盘 —— 卸载插件即随 schema 消失，不留残键。
+# 想看某个键的默认值与说明：设置页里对着控件悬停（tooltip 就是 schema 给的）。
+#
+# 用户配置落 ~/Library/Application Support/BarKit/config.yaml，只留改过的差异项
+# （**只有这一层会落盘**）。合并顺序：本文件 → 插件 schema 默认值 → 用户配置，
+# 后者覆盖前者；dict 递归合并、list 整体覆盖。见方案文档 §4.5。
+
+schema_version: 1
+
+# 菜单栏图标：菜单栏**主图标**的来源（P0③）。
+#   ""            = BarKit 默认底图（条形码字形）
+#   "<状态机身份>" = 用某台状态机当前的取值图标当主图标，形如 "<插件 id>.<状态 key>"
+#                     只列出「在声明里定义了主图标（StateSpec.icon）的状态机」——
+#                     有主图标即取得资格，选谁由用户在此决定；取值随状态变
+#                     （如「录屏通知 · 第二屏」的实心 / 空心屏）。
+# 在「设置 → 通用 → 菜单栏」的「主图标」里选，不必手改本文件。该状态没给取值图标或已失联时
+# 回落它声明的主图标，只有该组件被禁用 / 卸载才回落 BarKit 默认底图（不留空格、不报错）。
+tray:
+  base_source: ""
+  # 角标的最低级别（决议 D17）：低于它的取值即使组件标了 alerts 也不上屏。
+  #   "warn" = 默认；"err" = 只在真出问题时才在菜单栏提醒（ERR 一律露出，屏蔽不掉）。
+  # 在「设置 → 通用 → 菜单栏」的「角标最低级别」里改，不必手改本文件；
+  # 改回默认档会自动删掉这一行（默认值不落盘）。
+  min_level: "warn"
+
+# 日志级别（框架级）：正常运行停在 info 就够，不必写 debug。
+#   "info"    = 出厂档（不写这一行就是它）：只记「发生了什么」（同步、启停、失败）
+#   "warning" = 更安静：只在真出问题时写
+#   "debug"   = 排查用：全部细节，同时把日志打到 stderr（从终端跑时看得见）
+# 改成非出厂档并重启即生效。**这一行留空时**，级别由环境变量 BARKIT_LOG_LEVEL
+# 决定（适合 `BARKIT_LOG_LEVEL=debug uv run barkit` 临时跑一次）——常驻实例由
+# launchd 拉起、拿不到终端环境，那种场景才需要在这里写死。
+# 日志落在 ~/Library/Logs/barkit/barkit.log（单文件 2 MB，写满就地截尾，不留备份）。
+# log:
+#   level: "warning"
+
+# 全局变量（见 docs/plans/2026-10-10-变量池与任务解耦架构.md）：把「值」抽出来，
+# **任务只引用变量** —— 一处定义、处处引用，问一次、算一次、处处用。多条任务都要用
+# 同一个「上班时间」算「下班时间」时，这是唯一不必各问各算的写法。
+# 在「设置 → 变量」页里维护（含新增 / 编辑 / 删除 / 测试），不必手改本文件。
+#
+# **声明与值分离**（硬约束）：这一节只写「它是什么」（来源 / 触发 / 表达式），运行值
+# 一律不进配置 —— 询问（``ask``）的答案按日存在 variables_state.json（到新的一天自动
+# 回到「未填」，于是「每天问一次」自然成立）；``derived`` 的値每次现算；``component``
+# 的值由该组件发布的状态快照实时给出。故这一节可以安全地被设置页回写。
+#
+# 内置三只 ``now`` / ``date`` / ``weekday`` **不用声明**，任何任务直接写 ``{now}`` 即可。
+#
+# ⚠️ **整段是一个列表、按整体覆盖合并**（与 ``plugin_order`` 同款）：用户配置里写了
+# 这一节就整份盖掉出厂这一份，不逐条合并 —— 要保留下面这条 ``scene``，请把它一起抄过去。
+variables:
+  # 当前场景：取自 route_guard 那台 ``profile`` 状态机的**副标题**（如「办公室」）。
+  # 任务的生效规则可以写 ``{var: scene, op: "==", value: 办公室}``（只在某个场景才提醒）。
+  # 读的是该组件**已经发布的状态快照**，不是它的内部函数（组件之间只经总线）。
+  - id: scene
+    name: 当前场景
+    source: component
+    component: route_guard
+    key: profile
+    field: summary
+
+# 外部插件扫描根目录（E1）。默认 ~/Library/Application Support/BarKit/plugins/。
+# 如需自定义（开发/测试），取消注释并改为绝对路径（支持 ~ 展开）：
+# external_plugins:
+#   path: "~/Dev/barkit-external-plugins"
+
+# 插件段：只剩框架保留键 `enabled`（加载门控，缺省为启用）。
+# 业务默认值一律**不写在这里** —— 它们在各自插件目录的 `plugin.py::config_schema()`：
+#   recognize    OCR / 条码开关、语言、识别精度
+#   notify_guard 防抖周期、自动化开关、启动时拉起、静音规则
+#   route_guard  场景列表（profiles）、helper 巡逻节律
+#   ipad_tunnel  隧道开关、端口、IPv6 处理、Wi-Fi 切换
+#   hosts_guard  自动更新间隔（条目主数据在 hosts_entries.json，见下）
+#   autotype     全局倒计时 / 间隔 / 回车、自动输入项
+#   bt_guard     要看的蓝牙设备、唤醒后自动重连的开关
+plugins:
+  recognize:
+    enabled: true
+
+  notify_guard:
+    enabled: true
+
+  route_guard:
+    enabled: true
+
+  ipad_tunnel:
+    enabled: true              # 框架加载门控：插件常驻（开关只控隧道功能，不可借它禁用插件）
+
+  hosts_guard:
+    enabled: true
+    # 条目主数据**不在** config —— 广告屏蔽列表可达上千条，塞进用户手改的 config 会让
+    # 文件无法阅读。它在 ~/Library/Application Support/BarKit/hosts_entries.json，
+    # 在状态面板点「hosts 托管」那一行打开管理窗维护（支持搜索、分类过滤与批量导入）。
+
+  autotype:
+    enabled: true
+
+  bt_guard:
+    enabled: true

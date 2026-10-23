@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BarKit 面板 · 现在 vs 靠拢 Liquid Glass</title>
+<style>
+  :root{
+    --accent:#5E5CE6; --accent-soft:#ECECFD;
+    --green:#34C759; --green-soft:#E7F8EC;
+    --text1:#1D1D1F; --text2:#6E6E73; --text3:#8E8E93;
+    --surface:#FFFFFF; --surface2:#FAFAFC;
+    --border:#E4E4E9; --border-strong:#D4D4D9;
+    --radius-lg:14px; --radius-sm:8px;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  html,body{margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif; color:var(--text1);}
+  /* macOS 风格壁纸，让玻璃透出桌面 */
+  body{
+    min-height:100vh; padding:40px 24px 56px;
+    background:
+      radial-gradient(120% 120% at 18% 12%, #ff9a6c 0%, rgba(255,154,108,0) 42%),
+      radial-gradient(120% 120% at 85% 20%, #ff5e8a 0%, rgba(255,94,138,0) 40%),
+      radial-gradient(140% 140% at 70% 95%, #7b6cff 0%, rgba(123,108,255,0) 45%),
+      linear-gradient(135deg,#3aa0ff 0%, #6a5cff 55%, #b15cff 100%);
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{color:#fff; font-weight:600; font-size:20px; margin:0 0 4px; text-shadow:0 1px 8px rgba(0,0,0,.25);}
+  .sub{color:rgba(255,255,255,.85); font-size:13px; margin:0 0 28px; text-shadow:0 1px 6px rgba(0,0,0,.2);}
+  .stage{display:flex; gap:40px; flex-wrap:wrap; justify-content:center; align-items:flex-start;}
+  .col{display:flex; flex-direction:column; align-items:center; gap:12px;}
+  .tag{color:#fff; font-size:13px; font-weight:600; padding:5px 12px; border-radius:999px;
+       background:rgba(255,255,255,.18); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.35);}
+
+  /* 通用面板内容 */
+  .panel{width:320px; overflow:hidden; font-size:13px;}
+  .head{display:flex; align-items:center; gap:10px; padding:14px 14px 12px;}
+  .logo{width:26px; height:26px; border-radius:7px; flex:0 0 auto;
+        background:linear-gradient(135deg,var(--accent),#8A5CF6);
+        display:flex; align-items:center; justify-content:center;}
+  .logo i{display:block; width:13px; height:13px; border-radius:2px;
+          background:repeating-linear-gradient(90deg,#fff 0 2px, transparent 2px 4px); opacity:.95;}
+  .title{font-weight:600; font-size:15px;}
+  .chip{margin-left:auto; font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px;
+        color:var(--green); background:var(--green-soft);}
+  .divider{height:1px; background:var(--border); margin:0;}
+  .rows{padding:8px 0;}
+  .row{display:flex; align-items:center; gap:10px; padding:6px 14px;}
+  .ico{width:30px; height:30px; border-radius:8px; flex:0 0 auto; background:var(--accent-soft);
+       color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:15px;}
+  .name{font-weight:600; font-size:13px;}
+  .sub2{font-size:11.5px; color:var(--text2); margin-top:2px;}
+  .right{margin-left:auto; display:flex; align-items:center;}
+  .badge{font-size:11px; font-weight:700; padding:2px 8px; border-radius:8px;
+         background:var(--accent-soft); color:var(--accent);}
+  /* iOS 风格开关 */
+  .sw{width:40px; height:22px; border-radius:11px; background:var(--text3); position:relative; transition:.18s;}
+  .sw.on{background:var(--green);}
+  .sw::after{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:.18s; box-shadow:0 1px 2px rgba(0,0,0,.3);}
+  .sw.on::after{left:20px;}
+  .foot{display:flex; gap:10px; padding:10px 14px 14px;}
+  .btn{flex:1; text-align:center; padding:6px 0; border-radius:8px; font-size:13px; font-weight:600;
+       color:var(--text2); background:var(--surface2); border:1px solid var(--border);}
+
+  /* ===== 左：现在（实心表面）===== */
+  .now{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);}
+
+  /* ===== 右：靠拢 Liquid Glass（真·材质）===== */
+  .glass{
+    background:rgba(255,255,255,.55);
+    -webkit-backdrop-filter:blur(34px) saturate(180%);
+    backdrop-filter:blur(34px) saturate(180%);
+    border-radius:24px;
+    /* 边缘高光 + 顶部光泽 + 悬浮投影 */
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.55),
+      inset 0 1px 0 rgba(255,255,255,.85),
+      0 22px 50px rgba(0,0,0,.28);
+    position:relative;
+  }
+  .glass .divider{background:rgba(0,0,0,.08);}      /* 发丝线更淡，靠材质分隔 */
+  .glass .ico{background:rgba(94,92,230,.16);}
+  .glass .chip{background:rgba(52,199,89,.18);}
+  .glass .badge{background:rgba(94,92,230,.16);}
+  .glass .btn{background:rgba(255,255,255,.4); border-color:rgba(255,255,255,.6); color:var(--text1);}
+  .glass .sw{box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);}
+  /* 顶部 specular 光泽 */
+  .glass::before{content:""; position:absolute; inset:0 0 auto 0; height:40%; border-radius:24px 24px 0 0;
+     background:linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,0)); pointer-events:none;}
+  .note{margin-top:22px; color:rgba(255,255,255,.9); font-size:12px; max-width:680px; text-align:center; line-height:1.6; text-shadow:0 1px 6px rgba(0,0,0,.2);}
+  .note b{color:#fff;}
+</style>
+</head>
+<body>
+  <h1>BarKit 面板：现在 vs 靠拢 Liquid Glass</h1>
+  <p class="sub">左侧＝当前代码实貌（实心表面）· 右侧＝用真实 CSS backdrop-filter 模拟的玻璃材质</p>
+
+  <div class="stage">
+    <div class="col">
+      <div class="tag">现在 · 平面 squircle（2021–2024）</div>
+      <div class="panel now">
+        <div class="head">
+          <div class="logo"><i></i></div>
+          <div class="title">BarKit</div>
+          <div class="chip">正常</div>
+        </div>
+        <div class="divider"></div>
+        <div class="rows">
+          <div class="row">
+            <div class="ico">⤴</div>
+            <div><div class="name">路由守卫</div><div class="sub2">已接管 · 自动</div></div>
+            <div class="right"><div class="sw on"></div></div>
+          </div>
+          <div class="row">
+            <div class="ico">◉</div>
+            <div><div class="name">录屏通知</div><div class="sub2">检测到第二屏</div></div>
+            <div class="right"><span class="badge">自动</span></div>
+          </div>
+          <div class="row">
+            <div class="ico">⌨</div>
+            <div><div class="name">一键输入</div><div class="sub2">就绪</div></div>
+            <div class="right"><div class="sw"></div></div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="foot">
+          <div class="btn">识别</div>
+          <div class="btn">设置</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="tag">建议 · Liquid Glass（2025/26）</div>
+      <div class="panel glass">
+        <div class="head">
+          <div class="logo"><i></i></div>
+          <div class="title">BarKit</div>
+          <div class="chip">正常</div>
+        </div>
+        <div class="divider"></div>
+        <div class="rows">
+          <div class="row">
+            <div class="ico">⤴</div>
+            <div><div class="name">路由守卫</div><div class="sub2">已接管 · 自动</div></div>
+            <div class="right"><div class="sw on"></div></div>
+          </div>
+          <div class="row">
+            <div class="ico">◉</div>
+            <div><div class="name">录屏通知</div><div class="sub2">检测到第二屏</div></div>
+            <div class="right"><span class="badge">自动</span></div>
+          </div>
+          <div class="row">
+            <div class="ico">⌨</div>
+            <div><div class="name">一键输入</div><div class="sub2">就绪</div></div>
+            <div class="right"><div class="sw"></div></div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="foot">
+          <div class="btn">识别</div>
+          <div class="btn">设置</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    右侧只是 <b>CSS 近似</b>：浏览器用 <code>backdrop-filter</code> 就能拿到真模糊；但 PySide6/Qt 在 macOS 上<strong>不暴露 NSVisualEffectView</strong>，
+    所以应用里要拿到同款「透出桌面＋折射」必须另嵌原生视图（方案 B）。左侧是当前仓库实貌：实心 surface 色、14px 圆角、1px 描边、多条分隔线、无投影——即 Liquid Glass 出来前要被取代的那套。
+  </p>
+</body>
+</html>

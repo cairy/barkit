@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+*.egg-info/
+# macOS 元数据噪声
+.DS_Store
+
+# WorkBuddy 工具内部数据（记忆/任务状态），非项目源码
+.workbuddy/

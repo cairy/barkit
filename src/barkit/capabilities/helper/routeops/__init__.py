@@ -1,0 +1,208 @@
+"""routeops 包（2026-10-02 由 routeops.py 拆包）：路由原语的实现，按职责分成
+ipvalid / netmode / validate / routes / lease / netsvc / baseline / converge /
+ops / gwledger 十个子模块 ＋ routeops.py（一轮周期）。本文件全量再导出 ⇒ 引用面零改动。"""
+
+from __future__ import annotations
+
+# --- 原 ``routeops.py`` 的全部外部导入，原样再导出（引用面零改动）---
+import ipaddress
+import json
+import re
+import subprocess
+import time
+from ..consts import DEFAULT_POLL, IFCONFIG, IPCONFIG, ROUTE
+from ..safeio import SYS_RUN_DIR, _atomic_write_json, log
+from ..state import read_state, write_state
+
+# --- 包内各子模块 ---
+from .ipvalid import (
+    valid_destination,
+    valid_ipv4,
+)
+from .netmode import (
+    MODE_DHCP,
+    MODE_DHCP_PIN,
+    MODE_STATIC,
+    NETWORKSETUP,
+    _NET_FIELDS,
+    _NET_MODES,
+    _PIN_FIELDS,
+    _PIN_LEASE_FLAGS,
+    _in_subnet,
+    _net_cmd,
+    _set_dns,
+    _target_of,
+    _valid_dns_list,
+    validate_net,
+)
+from .validate import (
+    INTENT_VERSION,
+    MAX_DESTINATIONS,
+    MAX_RULES,
+    _OP_FIELDS,
+    _OP_KINDS,
+    _RULE_FIELDS,
+    _SCHEMA,
+    _pins_lease,
+    load_intent,
+    validate_intent,
+    validate_op_params,
+    validate_routes,
+)
+from .routes import (
+    _ROUTE_GET_KEYS,
+    _route,
+    current_gateways,
+    current_ipv4,
+    ensure_removed,
+    ensure_route,
+    iface_up,
+    parse_destination,
+    route_get,
+    route_via,
+)
+from .lease import (
+    RENEW_LEASE_STEP_S,
+    RENEW_LEASE_TIMEOUT_S,
+    _mult_addr,
+    _packet_value,
+    _wait_lease,
+    read_lease,
+)
+from .netsvc import (
+    read_service_config,
+    service_for_iface,
+)
+from .baseline import (
+    _baseline_dns,
+    _baseline_file,
+    _baseline_target,
+    _restore_baseline,
+    _same,
+    _write_target,
+    ensure_baseline,
+    read_baseline,
+)
+from .converge import (
+    ROLLBACK_CADENCE_MARGIN_S,
+    ROLLBACK_GRACE_S,
+    ROLLBACK_WINDOW_S,
+    _converge_iface,
+    _idle_net,
+    _iface_gateway,
+    _iface_gateways,
+    _lease_needed,
+    _needs_iface_gateway,
+    _net_lost,
+    _pick_handback,
+    _recently_rolled_back,
+    _rollback_if_lost,
+    _rollback_window_s,
+    _still_ours,
+)
+from .ops import (
+    _apply_op,
+    _set_dhcp,
+    run_net_op,
+)
+from .routeops import (
+    GATEWAY_SRC_IFACE,
+    GATEWAY_SRC_NONE,
+    GATEWAY_SRC_RULE,
+    _apply_net,
+    run_cycle,
+)
+
+__all__ = [
+    "DEFAULT_POLL",
+    "GATEWAY_SRC_IFACE",
+    "GATEWAY_SRC_NONE",
+    "GATEWAY_SRC_RULE",
+    "IFCONFIG",
+    "INTENT_VERSION",
+    "IPCONFIG",
+    "MAX_DESTINATIONS",
+    "MAX_RULES",
+    "MODE_DHCP",
+    "MODE_DHCP_PIN",
+    "MODE_STATIC",
+    "NETWORKSETUP",
+    "RENEW_LEASE_STEP_S",
+    "RENEW_LEASE_TIMEOUT_S",
+    "ROLLBACK_CADENCE_MARGIN_S",
+    "ROLLBACK_GRACE_S",
+    "ROLLBACK_WINDOW_S",
+    "ROUTE",
+    "SYS_RUN_DIR",
+    "_NET_FIELDS",
+    "_NET_MODES",
+    "_OP_FIELDS",
+    "_OP_KINDS",
+    "_PIN_FIELDS",
+    "_PIN_LEASE_FLAGS",
+    "_ROUTE_GET_KEYS",
+    "_RULE_FIELDS",
+    "_SCHEMA",
+    "_apply_net",
+    "_apply_op",
+    "_atomic_write_json",
+    "_baseline_dns",
+    "_baseline_file",
+    "_baseline_target",
+    "_converge_iface",
+    "_idle_net",
+    "_iface_gateway",
+    "_iface_gateways",
+    "_in_subnet",
+    "_lease_needed",
+    "_mult_addr",
+    "_needs_iface_gateway",
+    "_net_cmd",
+    "_net_lost",
+    "_packet_value",
+    "_pick_handback",
+    "_pins_lease",
+    "_recently_rolled_back",
+    "_restore_baseline",
+    "_rollback_if_lost",
+    "_rollback_window_s",
+    "_route",
+    "_same",
+    "_set_dhcp",
+    "_set_dns",
+    "_still_ours",
+    "_target_of",
+    "_valid_dns_list",
+    "_wait_lease",
+    "_write_target",
+    "current_gateways",
+    "current_ipv4",
+    "ensure_baseline",
+    "ensure_removed",
+    "ensure_route",
+    "iface_up",
+    "ipaddress",
+    "json",
+    "load_intent",
+    "log",
+    "parse_destination",
+    "re",
+    "read_baseline",
+    "read_lease",
+    "read_service_config",
+    "read_state",
+    "route_get",
+    "route_via",
+    "run_cycle",
+    "run_net_op",
+    "service_for_iface",
+    "subprocess",
+    "time",
+    "valid_destination",
+    "valid_ipv4",
+    "validate_intent",
+    "validate_net",
+    "validate_op_params",
+    "validate_routes",
+    "write_state",
+]

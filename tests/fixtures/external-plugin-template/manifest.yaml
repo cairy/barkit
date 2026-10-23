@@ -1,0 +1,16 @@
+# 外部插件清单（manifest）。Loader 在导入插件代码前即读取本文件做 api_version 门禁。
+# 字段（真源见《组件契约规范》§2.1「外部插件清单」）：
+#   id           插件唯一标识（registry 键；必填，且以此为准）
+#   name         用户可读名称（可选）。**显示名仍以 `Plugin.name` 为准**，这里只作记录
+#   version      插件自身版本（语义化）。登记到 `Plugin.version`，安装 / 覆盖时用于
+#                提示「用哪个版本覆盖哪个版本」。**不进任何门禁**：不写 = 未标注，照装
+#   api_version  插件契约版本，须与框架支持的版本**精确相等**，否则被拒
+#                （见 contribution/points.SUPPORTED_API_VERSION）
+#   entry        "模块:类" 形式，指向插件目录下的 Plugin 子类（默认 plugin:Plugin）
+#   order        新插件默认插入位（可选，覆盖类属性；§6.4）
+id: demo_ext
+name: 示例外部插件
+version: "0.1.0"
+api_version: 3
+entry: plugin:Plugin
+order: 95

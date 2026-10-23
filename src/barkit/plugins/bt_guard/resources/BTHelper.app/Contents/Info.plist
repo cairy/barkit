@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- NSBluetoothAlwaysUsageDescription 是【整个方案成立的前提】，不是装饰：
+	     它会被 adhoc 签名封进代码签名，TCC 读的就是这一份。删掉它 / 改成从别处
+	     运行时注入，都会让助手在调用蓝牙私有 API 那一刻 SIGABRT。 -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>用于在唤醒后确认蓝牙设备是否在线，必要时重开一次蓝牙控制器把它带回来。</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.barkit.bt-helper</string>
+	<key>CFBundleName</key>
+	<string>BTHelper</string>
+	<key>CFBundleDisplayName</key>
+	<string>BarKit Bluetooth Helper</string>
+	<key>CFBundleExecutable</key>
+	<string>bt-helper</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<!-- 不驻留 Dock / 不抢焦点：它是个后台小工具，由 open 按需拉起后自己退出。 -->
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>

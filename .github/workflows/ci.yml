@@ -1,0 +1,40 @@
+name: CI
+
+# 检查链：pyflakes → pytest。本项目是 macOS 菜单栏应用，pyobjc 只在 macOS 可安装。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      # runner 没有显示器，Qt 必须走离屏平台，否则收集期就会挂住
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      # --locked：uv.lock 与 pyproject.toml 不一致就直接失败。
+      # 这是「依赖可复现」这条约束的执行点，别放宽成 uv sync。
+      - name: 安装依赖
+        run: uv sync --locked --group dev
+
+      - name: pyflakes
+        run: uv run pyflakes src/ tests/
+
+      - name: pytest
+        run: uv run pytest -q
+
+      # 不含 doc_lint（与私有仓刻意不同，不是漏了）：
+      # 它守的是「内部日志指针不悬空 / 每篇文档在分区 README 登记 / 任务板有字节上限」，
+      # 而这些规范的前提 —— docs/log/ 与 docs/current-task.md —— 故意不在公开仓里，
+      # 规则失去对象。留着它只会报 42 处「指针悬空」，指的全是本就不公开的文件。
+      #
+      # 本文件由 `public-assets/.github/` 在每次同步时覆盖写入，不从私有仓 git 树导出。
