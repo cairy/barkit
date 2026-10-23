@@ -68,7 +68,7 @@ class _SceneItemsMixin:
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(6)
         dest = QLineEdit(destination, row)
-        dest.setPlaceholderText("如 10.99.2.0/24")
+        dest.setPlaceholderText("如 10.199.2.0/24")
         via_edit = QLineEdit(via, row)
         via_edit.setPlaceholderText("下一跳（留空 = 匹配网关 / 固化租约的）")
         dest.editingFinished.connect(self._collect_fields)

@@ -28,26 +28,26 @@ _SHIPPED_DEFAULT_PROFILES: list = [
     {
         "name": "office",
         "ifaces": ["en5"],
-        "match": {"gateway": "10.99.1.254"},
+        "match": {"gateway": "10.199.1.254"},
         "net": {"mode": "dhcp"},
         "routes": {
             "enabled": True,
             "items": [
-                {"destination": "10.99.2.0/24", "via": "10.99.1.254"},
-                {"destination": "10.2.0.0/16", "via": "10.99.1.254"},
-                {"destination": "192.168.100.5/32", "via": "10.99.1.254"},
+                {"destination": "10.199.2.0/24", "via": "10.199.1.254"},
+                {"destination": "10.202.0.0/16", "via": "10.199.1.254"},
+                {"destination": "192.168.200.5/32", "via": "10.199.1.254"},
             ],
         },
     },
     {
         "name": "home",
         "ifaces": ["en6"],
-        "match": {"gateway": "192.168.2.1"},
+        "match": {"gateway": "192.168.21.1"},
         "net": {"mode": "dhcp"},
         "routes": {
             "enabled": True,
             "items": [
-                {"destination": "172.16.0.0/16", "via": "192.168.2.1"},
+                {"destination": "172.16.0.0/16", "via": "192.168.21.1"},
             ],
         },
     },

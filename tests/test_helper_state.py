@@ -225,16 +225,16 @@ def test_flush_by_another_subject_keeps_the_forgotten_observation(tmp_path, monk
     monkeypatch.setattr(state, "_PUSHER", lambda subject, observed: None)
 
     fact = {"ok": True, "checked_at": 1000,
-            "net_gateways": {"en5": {"gateway": "10.99.1.254"}}}
+            "net_gateways": {"en5": {"gateway": "10.199.1.254"}}}
     state.record(state.SUBJECT_ROUTE, fact)
     state.forget_observed()
     state.record(state.SUBJECT_HOSTS, {"count": 4, "checked_at": 1001})
 
     on_disk = (state.load_snapshot()["subjects"].get(state.SUBJECT_ROUTE) or {}).get("observed")
-    assert on_disk and on_disk["net_gateways"]["en5"]["gateway"] == "10.99.1.254", \
+    assert on_disk and on_disk["net_gateways"]["en5"]["gateway"] == "10.199.1.254", \
         "账被别的 subject 的 flush 抹掉，守护重启后就再也叠不上路由"
     assert state.read_state().get("net_gateways", {}).get("en5", {}).get("gateway") \
-        == "10.99.1.254", "下一轮 run_cycle 的 prev 必须还拿得到账"
+        == "10.199.1.254", "下一轮 run_cycle 的 prev 必须还拿得到账"
 
 
 def test_restart_keeps_the_gateway_ledger(tmp_path, monkeypatch):
@@ -260,7 +260,7 @@ def test_restart_keeps_the_gateway_ledger(tmp_path, monkeypatch):
 
     # 上一个进程退出时盘上留下的现场：route 账在。
     ledger = {"ok": True, "checked_at": 1000,
-              "net_gateways": {"en5": {"gateway": "10.99.1.254"}},
+              "net_gateways": {"en5": {"gateway": "10.199.1.254"}},
               "rules": [], "net": {"iface": "en5"}}
     (tmp_path / state.SNAPSHOT_NAME).write_text(
         json.dumps({"version": state.SNAPSHOT_VERSION, "written_at": 1000,
@@ -273,7 +273,7 @@ def test_restart_keeps_the_gateway_ledger(tmp_path, monkeypatch):
     state.note_intent(state.SUBJECT_HOSTS, {"count": 4})
 
     on_disk = (state.load_snapshot()["subjects"].get(state.SUBJECT_ROUTE) or {}).get("observed")
-    assert on_disk and on_disk["net_gateways"]["en5"]["gateway"] == "10.99.1.254", \
+    assert on_disk and on_disk["net_gateways"]["en5"]["gateway"] == "10.199.1.254", \
         "重启后第一次 flush 把账写空，开机后路由永远叠不上"
     assert state.read_state().get("net_gateways", {}).get("en5", {}).get("gateway") \
-        == "10.99.1.254", "run_cycle 的 prev 必须还拿得到账"
+        == "10.199.1.254", "run_cycle 的 prev 必须还拿得到账"

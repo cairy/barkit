@@ -34,7 +34,7 @@ def valid_ipv4(text) -> bool:
 
 
 def valid_destination(text) -> bool:
-    """合法 IPv4 网段 / 主机（``10.99.2.0/24``、``192.168.100.5/32``）。"""
+    """合法 IPv4 网段 / 主机（``10.199.2.0/24``、``192.168.200.5/32``）。"""
     try:
         return ipaddress.ip_network(text, strict=False).version == 4
     except (ValueError, TypeError):

@@ -188,7 +188,7 @@ def test_dns_restore_takes_no_params():
 def _intent_rule(**kw) -> dict:
     """一条意图规则（app 侧 ``intent.build_intent`` 的产物形状）：必带 ``apply``。"""
     rule = {"name": "office", "priority": 1, "iface": "en5",
-            "gateway": "10.99.1.254", "destinations": ["10.99.2.0/24"],
+            "gateway": "10.199.1.254", "destinations": ["10.199.2.0/24"],
             "enabled": True, "apply": True}
     rule.update(kw)
     return rule
@@ -400,11 +400,11 @@ def test_intent_rule_net_goes_through_the_same_validate_net():
     """规则里的 ``net`` 走 ``validate_net`` 的同一份口径 —— helper 是 root，不信送进来的东西。"""
     ok, err = routeops.validate_intent({
         "version": routeops.INTENT_VERSION, "poll": 30,
-        "rules": [_intent_rule(net={"mode": "static", "ip": "10.99.1.10",
+        "rules": [_intent_rule(net={"mode": "static", "ip": "10.199.1.10",
                                     "mask": "255.255.255.0"})],
     })
     assert err is None, err
-    assert ok["rules"][0]["net"] == {"mode": "static", "ip": "10.99.1.10",
+    assert ok["rules"][0]["net"] == {"mode": "static", "ip": "10.199.1.10",
                                      "mask": "255.255.255.0"}
 
     # 不写 net ⇒ 产物里根本没有这个键（不是写了一空段）
@@ -436,7 +436,7 @@ def test_intent_allows_a_scene_with_no_routes_at_all():
 
     _, err = routeops.validate_intent({
         "version": routeops.INTENT_VERSION, "poll": 30,
-        "rules": [_intent_rule(destinations=["10.99.2.0/24"], gateway="")],
+        "rules": [_intent_rule(destinations=["10.199.2.0/24"], gateway="")],
     })
     assert err and "gateway" in err
 
@@ -449,7 +449,7 @@ def test_intent_allows_a_blank_gateway_only_for_a_pinned_lease_scene():
     它**不是**一句通用许可：跟随系统与静态 IP 那两种 ``net`` 都给不出网卡网关，
     收下它们等于让 helper 对着一个空的下一跳去加路由。
     """
-    blank = _intent_rule(destinations=["10.99.2.0/24"], gateway="")
+    blank = _intent_rule(destinations=["10.199.2.0/24"], gateway="")
     ok, err = routeops.validate_intent({
         "version": routeops.INTENT_VERSION, "poll": 30,
         "rules": [{**blank, "net": {"mode": "dhcp", "pin": {"ip": "", "mask": ""}}}],

@@ -249,7 +249,7 @@
 | --- | --- | --- |
 | 拉起 hev | `Popen([HEV_BIN, yml])`（位置参数；hev 不认 `-c`/`-f`，误用会 `Open -c failed` 立即退出），yml 由 helper 据隧道意图正文现场生成（内存里那份，不读盘） | hev 死亡 → helper 重启（KeepAlive 由 helper 自身循环保证） |
 | 发现 utun | `ifconfig -l` 前后 diff（hev 启动前后），取新增 `utunN` | — |
-| 两条 `/1` | 仅当 `hijack_route=true`：`route -n add -net 0.0.0.0/1 -interface utunN` + `route -n add -net 128.0.0.0/1 -interface utunN` | 仅当本轮实际加过才拆除（`route -n delete`，受 `_TUNNEL_ROUTE_HIJACKED` 状态位控制）；与 route_guard 的具体前缀（如 `10.99.2.0/24`）最长前缀优先共存 |
+| 两条 `/1` | 仅当 `hijack_route=true`：`route -n add -net 0.0.0.0/1 -interface utunN` + `route -n add -net 128.0.0.0/1 -interface utunN` | 仅当本轮实际加过才拆除（`route -n delete`，受 `_TUNNEL_ROUTE_HIJACKED` 状态位控制）；与 route_guard 的具体前缀（如 `10.199.2.0/24`）最长前缀优先共存 |
 | 设 DNS | 仅当 `hijack_dns=true`：`networksetup -setdnsservers <网络服务> 198.18.0.2`（<网络服务> 同上为 `_network_service()`，非硬编码 `Wi-Fi`） | 仅当本轮实际改过才复原：原无自定义 DNS 时存 `"empty"`，复原传字面量 `empty`（避免永久卡死）；`hijack_dns=false` 时完全不碰系统 DNS |
 | 切 Wi-Fi | `networksetup -setairportnetwork en0 <ssid>`（不带密码，仅切本机已配网络） | 由 `on_deactivate` 动作负责切回 |
 | 版本 | `HELPER_VERSION` 当前 `2.6.3`（改 helper 源码必须 bump，否则 app 判定「已是最新」→ 新代码永不落盘） | app 比对过期（`expected_version() != 已装版本`）→ 提示重装（复用 `daemon.status()`） |
@@ -318,7 +318,7 @@
 - [ ] 插 iPad USB + 起 iPad 端 hev → BarKit 自动拉起隧道（观测里 `active=true`、`utun` 非 null、`dns_set=true`）。
 - [ ] `curl -4 https://ifconfig.me` 返回 **iPad 的 Wi-Fi 公网 IP**；`scutil --dns | grep nameserver` 显示 `198.18.0.2`。
 - [ ] 激活时自动切到配置 SSID；停用时切回恢复 SSID。
-- [ ] 原 `route_guard` 静态规则（如 `10.99.2.0/24`）仍精准生效（最长前缀优先）。
+- [ ] 原 `route_guard` 静态规则（如 `10.199.2.0/24`）仍精准生效（最长前缀优先）。
 - [ ] 拔 USB → 隧道自动拆除、DNS 还原 `empty`、Wi-Fi 切回（无残留脏路由）。
 - [ ] `curl -6` 不泄漏 Mac Wi-Fi 公网 IP（默认 `disable_ipv6_on_activate=true` 时验收：IPv6 流量既不能经 iPad、也不可经本机 Wi-Fi，见 §9/§13-1）；若该项关闭则应观察到 IPv6 经本机 Wi-Fi 出网（用户知情选择）。
 - [ ] 手动停用后观测里 `active=false`，`route -n get default` 回到原网关（注意：激活时 `route -n get default` 仍显示原网关 en0，这是 macOS 显示特性，不代表劫持未生效——正确验证见 `hev-tunnel.md` §5.1）。

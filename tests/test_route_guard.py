@@ -188,13 +188,13 @@ OFFICE = {
     "name": "office",
     "priority": 1,
     "iface": "en5",
-    "gateway": "10.99.1.254",
-    "destinations": ["10.99.2.0/24"],
+    "gateway": "10.199.1.254",
+    "destinations": ["10.199.2.0/24"],
 }
 
 
-def _profile(name="office", iface="en5", gateway="10.99.1.254",
-             destinations=("10.99.2.0/24",), **overrides):
+def _profile(name="office", iface="en5", gateway="10.199.1.254",
+             destinations=("10.199.2.0/24",), **overrides):
     """新配置模型的**场景** fixture（§2.1）；``overrides`` 覆盖任意字段。
 
     ``OFFICE`` 是 helper 线格式的形状（`routeops` 的校验用例直接吃它）；本 fixture 是
@@ -220,12 +220,12 @@ def _profile(name="office", iface="en5", gateway="10.99.1.254",
 # ──────────────────────────────────────────────
 
 def test_parse_destination():
-    p = routeops.parse_destination("10.99.2.0/24")
-    assert p["network"] == "10.99.2.0"
+    p = routeops.parse_destination("10.199.2.0/24")
+    assert p["network"] == "10.199.2.0"
     assert p["mask"] == "255.255.255.0"
-    assert p["probe"] == "10.99.2.0"
-    assert p["cidr"] == "10.99.2.0/24"
-    assert routeops.parse_destination("192.168.100.5/32")["mask"] == "255.255.255.255"
+    assert p["probe"] == "10.199.2.0"
+    assert p["cidr"] == "10.199.2.0/24"
+    assert routeops.parse_destination("192.168.200.5/32")["mask"] == "255.255.255.255"
     assert routeops.parse_destination("not-an-ip") is None
     assert routeops.parse_destination("10.0.0.0/8")["mask"] == "255.0.0.0"
 
@@ -244,7 +244,7 @@ def test_validate_routes_rejects_bad_schema():
     _, err = routeops.validate_routes({"version": routeops.INTENT_VERSION, "poll": 30, "rules": [bad_rule]})
     assert err and "gateway" in err
 
-    bad_rule = {**OFFICE, "destinations": ["10.99.2.0/999"]}
+    bad_rule = {**OFFICE, "destinations": ["10.199.2.0/999"]}
     _, err = routeops.validate_routes({"version": routeops.INTENT_VERSION, "poll": 30, "rules": [bad_rule]})
     assert err and "destinations" in err
 
@@ -277,16 +277,16 @@ def test_validate_routes_off_destinations_must_be_a_subset():
     宁可整份拒绝 —— 与「未知字段一律整份拒绝」同一口径，不猜用户想撤哪一条。
     """
     rule = _apply({**OFFICE,
-                   "destinations": ["10.99.2.0/24", "10.2.0.0/16"],
-                   "off_destinations": ["10.2.0.0/16", "10.2.0.0/16"]})
+                   "destinations": ["10.199.2.0/24", "10.202.0.0/16"],
+                   "off_destinations": ["10.202.0.0/16", "10.202.0.0/16"]})
     data, err = routeops.validate_routes(
         {"version": routeops.INTENT_VERSION, "poll": 30, "rules": [rule]})
     assert err is None
-    assert data["rules"][0]["off_destinations"] == ["10.2.0.0/16"], "重复的收成一个"
+    assert data["rules"][0]["off_destinations"] == ["10.202.0.0/16"], "重复的收成一个"
 
     for bad, why in (
-        ("10.2.0.0/16", "不是数组"),
-        (["10.9.9.9/32"], "撤一个 destinations 里没有的目标"),
+        ("10.202.0.0/16", "不是数组"),
+        (["10.209.9.9/32"], "撤一个 destinations 里没有的目标"),
         (["not-a-cidr"], "元素不是合法目标"),
     ):
         got, err2 = routeops.validate_routes(
@@ -295,7 +295,7 @@ def test_validate_routes_off_destinations_must_be_a_subset():
         assert got == {} and err2 and "off_destinations" in err2, why
 
     # 不带这一栏照旧合法（纯增量：v6 那份形状语义一个字没改）
-    plain = _apply({**OFFICE, "destinations": ["10.99.2.0/24"]})
+    plain = _apply({**OFFICE, "destinations": ["10.199.2.0/24"]})
     got, err3 = routeops.validate_routes(
         {"version": routeops.INTENT_VERSION, "poll": 30, "rules": [plain]})
     assert err3 is None and "off_destinations" not in got["rules"][0]
@@ -314,9 +314,9 @@ def test_validate_routes_rejects_bad_paused_and_enabled():
 
 def test_cycle_match_adds_route(helper_env):
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]     # en5 网关匹配规则
+    table.packet_gateways = ["10.199.1.254"]     # en5 网关匹配规则
     routeops.run_cycle(_intent_text([_apply(OFFICE, True)]))
-    assert ("add", "10.99.2.0/24", "10.99.1.254") in table.ops
+    assert ("add", "10.199.2.0/24", "10.199.1.254") in table.ops
     state = _observed_route()
     assert state["ok"] is True
     assert state["rules"][0]["matched"] is True
@@ -325,11 +325,11 @@ def test_cycle_match_adds_route(helper_env):
 
 def test_cycle_match_idempotent_skips_add(helper_env):
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
-    table.routes["10.99.2.0"] = {           # 路由已存在且经规则网关
-        "destination": "10.99.2.0",
+    table.packet_gateways = ["10.199.1.254"]
+    table.routes["10.199.2.0"] = {           # 路由已存在且经规则网关
+        "destination": "10.199.2.0",
         "mask": "255.255.255.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     routeops.run_cycle(_intent_text([_apply(OFFICE, True)]))
@@ -338,15 +338,15 @@ def test_cycle_match_idempotent_skips_add(helper_env):
 
 def test_cycle_no_match_removes_owned_route(helper_env):
     src, table = helper_env
-    table.packet_gateways = ["192.168.2.1"]  # 不在办公室（app 侧据此算出 apply=False）
-    table.routes["10.99.2.0"] = {            # 此前 helper 加的路由
-        "destination": "10.99.2.0",
+    table.packet_gateways = ["192.168.21.1"]  # 不在办公室（app 侧据此算出 apply=False）
+    table.routes["10.199.2.0"] = {            # 此前 helper 加的路由
+        "destination": "10.199.2.0",
         "mask": "255.255.255.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     routeops.run_cycle(_intent_text([_apply(OFFICE, False, trigger=False)]))
-    assert ("delete", "10.99.2.0/24", "10.99.1.254") in table.ops
+    assert ("delete", "10.199.2.0/24", "10.199.1.254") in table.ops
     state = _observed_route()
     assert state["rules"][0]["matched"] is False
 
@@ -354,8 +354,8 @@ def test_cycle_no_match_removes_owned_route(helper_env):
 def test_cycle_no_match_keeps_foreign_route(helper_env):
     """不匹配且目标当前经其他网关 → 绝不删除（宁不清理不误删）。"""
     src, table = helper_env
-    table.packet_gateways = ["192.168.2.1"]
-    table.default_gateway = "192.168.2.1"    # 该网段走默认（非规则网关）
+    table.packet_gateways = ["192.168.21.1"]
+    table.default_gateway = "192.168.21.1"    # 该网段走默认（非规则网关）
     routeops.run_cycle(_intent_text([_apply(OFFICE, False, trigger=False)]))
     assert not any(v[0] == "delete" for v in table.ops)
 
@@ -367,30 +367,30 @@ def test_cycle_adds_one_destination_and_removes_another(helper_env):
     ``apply`` 一位走），那条「已经叠上去、现在被关掉」的路由就撤不下来了。
     """
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
-    table.routes["10.2.0.0"] = {             # B 此前由本规则叠上，现在这条目标被关掉
-        "destination": "10.2.0.0",
+    table.packet_gateways = ["10.199.1.254"]
+    table.routes["10.202.0.0"] = {             # B 此前由本规则叠上，现在这条目标被关掉
+        "destination": "10.202.0.0",
         "mask": "255.255.0.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     rule = _apply({**OFFICE,
-                   "destinations": ["10.99.2.0/24", "10.2.0.0/16"],
-                   "off_destinations": ["10.2.0.0/16"]}, True)
+                   "destinations": ["10.199.2.0/24", "10.202.0.0/16"],
+                   "off_destinations": ["10.202.0.0/16"]}, True)
     state = routeops.run_cycle(_intent_text([rule]))
 
-    assert ("add", "10.99.2.0/24", "10.99.1.254") in table.ops
-    assert ("delete", "10.2.0.0/16", "10.99.1.254") in table.ops
+    assert ("add", "10.199.2.0/24", "10.199.1.254") in table.ops
+    assert ("delete", "10.202.0.0/16", "10.199.1.254") in table.ops
     assert state["rules"][0]["applied"] is True, "整条在叠，只有其中一条目标在撤"
     by_dest = {d["destination"]: d for d in state["rules"][0]["destinations"]}
-    assert by_dest["10.99.2.0/24"]["action"] == "add"
-    assert by_dest["10.2.0.0/16"]["action"] == "remove"
+    assert by_dest["10.199.2.0/24"]["action"] == "add"
+    assert by_dest["10.202.0.0/16"]["action"] == "remove"
 
 
 def test_cycle_bad_intent_keeps_routes(helper_env):
     """意图文件非法 → 整份拒绝，保持上轮路由不动（与迁移前一致）。"""
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
+    table.packet_gateways = ["10.199.1.254"]
     routeops.run_cycle(
         f'{{"version": {routeops.INTENT_VERSION}, "poll": 30, "rules": [{{"evil": 1}}]}}')
     assert table.ops == []
@@ -408,12 +408,12 @@ def test_cycle_version_mismatch_freezes_routes(helper_env):
     还在，否则「冻结」就是句空话。
     """
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
+    table.packet_gateways = ["10.199.1.254"]
     stale_version = routeops.INTENT_VERSION - 1
-    table.routes["10.99.2.0"] = {              # 上轮已生效的路由
-        "destination": "10.99.2.0",
+    table.routes["10.199.2.0"] = {              # 上轮已生效的路由
+        "destination": "10.199.2.0",
         "mask": "255.255.255.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     stale = json.dumps({"version": stale_version, "poll": 30, "paused": False,
@@ -421,7 +421,7 @@ def test_cycle_version_mismatch_freezes_routes(helper_env):
     routeops.run_cycle(stale)
 
     assert table.ops == [], "文件被拒时一条 route 命令都不该发"
-    assert table.routes["10.99.2.0"]["gateway"] == "10.99.1.254", "上轮路由不许被动"
+    assert table.routes["10.199.2.0"]["gateway"] == "10.199.1.254", "上轮路由不许被动"
     state = _observed_route()
     assert state["ok"] is False and state["has_intent"] is False
     assert "契约版本不符" in state["error"]
@@ -450,7 +450,7 @@ def test_cycle_early_return_keeps_the_gateway_ledger(helper_env):
     """
     _src, _table = helper_env
     helper_state._OBSERVED.clear()
-    ledger = {"en5": {"gateway": "10.99.1.1",
+    ledger = {"en5": {"gateway": "10.199.1.1",
                       "net": {"mode": "dhcp", "pin": {"ip": "", "mask": ""}}}}
     helper_state.record(helper_state.SUBJECT_ROUTE,
                         {"ok": True, "rules": [], "net_gateways": dict(ledger)})
@@ -466,27 +466,27 @@ def test_cycle_recovers_the_gateway_from_an_existing_route(net_env):
     """账被抹空、租约也读不到 ⇒ 从「已经叠上去的那条路由」把网关捡回来。
 
     真机 2026-10-19：``net_gateways`` 是 ``{}``、``pyxis`` 停在 Manual 且 Router 为
-    ``(null)``，而两条旧路由仍指向 ``10.99.1.254``。账本该记得，但它被历史版本抹过
+    ``(null)``，而两条旧路由仍指向 ``10.199.1.254``。账本该记得，但它被历史版本抹过
     —— 系统里那条路由是唯一还剩的证据。捡回来的同时记进账，下一轮不再依赖它。
     """
     _src, table, net = net_env
-    service = net.define("en5", mode="static", ip="10.99.1.34",
+    service = net.define("en5", mode="static", ip="10.199.1.34",
                          mask="255.255.255.0", gateway="")
     table.packet_gateways = []                     # 租约读不到（Manual 的正常现场）
-    table.routes["10.99.2.0"] = {"destination": "10.99.2.0", "mask": "255.255.255.0",
-                                 "gateway": "10.99.1.254", "interface": "en5"}
+    table.routes["10.199.2.0"] = {"destination": "10.199.2.0", "mask": "255.255.255.0",
+                                 "gateway": "10.199.1.254", "interface": "en5"}
     _forget_the_books()
     rule = {**OFFICE, "gateway": "",
-            "destinations": ["10.99.2.0/24", "10.2.0.0/16"],
+            "destinations": ["10.199.2.0/24", "10.202.0.0/16"],
             "net": {"mode": "dhcp",
-                    "pin": {"ip": "10.99.1.34", "mask": "255.255.255.0"}}}
+                    "pin": {"ip": "10.199.1.34", "mask": "255.255.255.0"}}}
 
     routeops.run_cycle(_intent_text([_apply(rule, True)]))
     state = _observed_route()
-    assert state["rules"][0]["gateway"] == "10.99.1.254"
+    assert state["rules"][0]["gateway"] == "10.199.1.254"
     assert state["rules"][0]["gateway_src"] == "iface"
-    assert ("add", "10.2.0.0/16", "10.99.1.254") in table.ops, "缺的那条要补上"
-    assert state["net_gateways"]["en5"]["gateway"] == "10.99.1.254", "捡到就记账"
+    assert ("add", "10.202.0.0/16", "10.199.1.254") in table.ops, "缺的那条要补上"
+    assert state["net_gateways"]["en5"]["gateway"] == "10.199.1.254", "捡到就记账"
     assert net.configs[service]["gateway"] == "", "router 仍然不写回网卡"
 
 
@@ -497,14 +497,14 @@ def test_cycle_does_not_adopt_a_route_from_another_iface(net_env):
     会被当成办公室的下一跳，把路由叠到一条已经不在的网关上去。
     """
     _src, table, net = net_env
-    net.define("en5", mode="static", ip="10.99.1.34", mask="255.255.255.0")
+    net.define("en5", mode="static", ip="10.199.1.34", mask="255.255.255.0")
     table.packet_gateways = []
-    table.routes["10.2.0.0"] = {"destination": "10.2.0.0", "mask": "255.255.0.0",
+    table.routes["10.202.0.0"] = {"destination": "10.202.0.0", "mask": "255.255.0.0",
                                 "gateway": "192.168.0.1", "interface": "en0"}
     _forget_the_books()
-    rule = {**OFFICE, "gateway": "", "destinations": ["10.2.0.0/16"],
+    rule = {**OFFICE, "gateway": "", "destinations": ["10.202.0.0/16"],
             "net": {"mode": "dhcp",
-                    "pin": {"ip": "10.99.1.34", "mask": "255.255.255.0"}}}
+                    "pin": {"ip": "10.199.1.34", "mask": "255.255.255.0"}}}
 
     routeops.run_cycle(_intent_text([_apply(rule, True)]))
     state = _observed_route()
@@ -515,11 +515,11 @@ def test_cycle_does_not_adopt_a_route_from_another_iface(net_env):
 def test_cycle_reports_paused_and_applies_intent(helper_env):
     """暂停是 app 侧的 policy：helper 只照意图执行，并把 paused 回显给面板。"""
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
-    table.routes["10.99.2.0"] = {           # 此前已生效的路由
-        "destination": "10.99.2.0",
+    table.packet_gateways = ["10.199.1.254"]
+    table.routes["10.199.2.0"] = {           # 此前已生效的路由
+        "destination": "10.199.2.0",
         "mask": "255.255.255.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     # 暂停态下 app 算出的意图：沿用上轮（apply=True）→ helper 幂等，无增删
@@ -528,7 +528,7 @@ def test_cycle_reports_paused_and_applies_intent(helper_env):
     state = _observed_route()
     assert state["paused"] is True
     # 已生效路由仍在
-    assert ("10.99.2.0" in table.routes) and (table.routes["10.99.2.0"]["gateway"] == "10.99.1.254")
+    assert ("10.199.2.0" in table.routes) and (table.routes["10.199.2.0"]["gateway"] == "10.199.1.254")
 
 
 def test_cycle_paused_never_touches_routes_without_prior_echo(helper_env, monkeypatch):
@@ -542,11 +542,11 @@ def test_cycle_paused_never_touches_routes_without_prior_echo(helper_env, monkey
     停用期间路由一个都不动。判据只能落在「有没有真的发过 route add/delete」上。
     """
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
-    table.routes["10.99.2.0"] = {           # 此前已生效的路由
-        "destination": "10.99.2.0",
+    table.packet_gateways = ["10.199.1.254"]
+    table.routes["10.199.2.0"] = {           # 此前已生效的路由
+        "destination": "10.199.2.0",
         "mask": "255.255.255.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     monkeypatch.setattr(routeops, "read_state", lambda: {})   # 守护刚重启：账上什么都还没有
@@ -554,44 +554,44 @@ def test_cycle_paused_never_touches_routes_without_prior_echo(helper_env, monkey
     routeops.run_cycle(_intent_text([_apply(OFFICE, False)], paused=True))
 
     assert table.ops == [], f"停用态动了路由：{table.ops}"
-    assert "10.99.2.0" in table.routes
+    assert "10.199.2.0" in table.routes
 
 
 def test_cycle_paused_echoes_the_previous_applied(helper_env):
     """停用期间回显照上轮记账 —— 报 app 那份（已退化的）估计只会越冻越确信该撤。"""
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]
+    table.packet_gateways = ["10.199.1.254"]
     routeops.run_cycle(_intent_text([_apply(OFFICE, True)]))      # 真叠一轮
-    assert ("add", "10.99.2.0/24", "10.99.1.254") in table.ops
+    assert ("add", "10.199.2.0/24", "10.199.1.254") in table.ops
     table.ops.clear()
 
     # 暂停 ＋ app 的冻结失败（apply 退化成 False）
     routeops.run_cycle(_intent_text([_apply(OFFICE, False)], paused=True))
 
     assert table.ops == []
-    assert "10.99.2.0" in table.routes
+    assert "10.199.2.0" in table.routes
     assert _observed_route()["rules"][0]["applied"] is True, "回显要照上轮，不是照那份估计"
 
 
 def test_cycle_apply_false_removes_owned_route(helper_env):
     """app 算出 apply=false（禁用/强制关）→ 撤掉该路由且下一轮不再回加。"""
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254"]   # 网关在线（撤路由与否由意图决定）
-    table.routes["10.99.2.0"] = {              # 此前 helper 加的路由
-        "destination": "10.99.2.0",
+    table.packet_gateways = ["10.199.1.254"]   # 网关在线（撤路由与否由意图决定）
+    table.routes["10.199.2.0"] = {              # 此前 helper 加的路由
+        "destination": "10.199.2.0",
         "mask": "255.255.255.0",
-        "gateway": "10.99.1.254",
+        "gateway": "10.199.1.254",
         "interface": "en5",
     }
     text = _intent_text([_apply({**OFFICE, "enabled": False}, False, trigger=True)])
     routeops.run_cycle(text)
     # 第一轮：撤掉该规则路由
-    assert ("delete", "10.99.2.0/24", "10.99.1.254") in table.ops
+    assert ("delete", "10.199.2.0/24", "10.199.1.254") in table.ops
     state = _observed_route()
     assert state["rules"][0]["matched"] is False      # 触发命中但被禁用
     assert state["rules"][0]["applied"] is False
     # 路由已不在表内
-    assert "10.99.2.0" not in table.routes
+    assert "10.199.2.0" not in table.routes
     # 第二轮：意图未变 → 不再回加（验证“不回加”）
     table.ops.clear()
     routeops.run_cycle(text)
@@ -971,13 +971,13 @@ def test_converge_iface_writes_once_then_goes_idempotent(net_env):
     """
     _src, _table, net = net_env
     service = net.define("en5")           # 初始是 DHCP
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0",
-           "gateway": "10.99.1.254"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0",
+           "gateway": "10.199.1.254"}
 
     res = routeops._converge_iface("en5", cfg, handback=False)
     assert res["action"] == "applied" and res["managed"] is True
     assert res["mode"] == routeops.MODE_STATIC
-    assert res["wrote"]["ip"] == "10.99.1.10" and res["net"] == cfg
+    assert res["wrote"]["ip"] == "10.199.1.10" and res["net"] == cfg
     assert [c[1] for c in net.writes()] == ["-setmanual"]
     assert net.configs[service]["mode"] == "static"
 
@@ -995,7 +995,7 @@ def test_converge_iface_refuses_when_service_or_config_or_baseline_missing(
     就是一秒级断网，所以「没有依据」的答案只能是「不动」。
     """
     _src, _table, net = net_env
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0"}
 
     # ① 设备名 → 服务名查不到（网卡拔了 / 名字写错）
     res = routeops._converge_iface("en9", cfg, handback=False)
@@ -1036,9 +1036,9 @@ def test_baseline_keeps_only_the_earliest_snapshot(net_env, monkeypatch):
     assert handed["mode"] == "static" and handed["ip"] == "192.168.1.5"
 
     # 改一次（我们写进去的），再改一次 —— baseline 不许被这份新值顶掉
-    routeops._converge_iface("en5", {"mode": "static", "ip": "10.99.1.10",
+    routeops._converge_iface("en5", {"mode": "static", "ip": "10.199.1.10",
                                      "mask": "255.255.255.0"}, handback=False)
-    routeops._converge_iface("en5", {"mode": "static", "ip": "10.99.1.11",
+    routeops._converge_iface("en5", {"mode": "static", "ip": "10.199.1.11",
                                      "mask": "255.255.255.0"}, handback=False)
     assert routeops.read_baseline()[service] == handed
 
@@ -1054,7 +1054,7 @@ def test_handback_restores_baseline_and_does_nothing_when_already_there(net_env)
     service = net.define("en5", mode="dhcp", ip="192.168.1.5",
                          mask="255.255.255.0", gateway="192.168.1.1")
     routeops.ensure_baseline(service, "en5", routeops.read_service_config(service))
-    routeops._converge_iface("en5", {"mode": "static", "ip": "10.99.1.10",
+    routeops._converge_iface("en5", {"mode": "static", "ip": "10.199.1.10",
                                      "mask": "255.255.255.0"}, handback=False)
     assert net.configs[service]["mode"] == "static"
 
@@ -1078,7 +1078,7 @@ def test_handback_dns_flag_skips_dns_restore(net_env):
     service = net.define("en5", mode="dhcp", ip="192.168.1.5",
                          mask="255.255.255.0", gateway="192.168.1.1")
     routeops.ensure_baseline(service, "en5", routeops.read_service_config(service))
-    routeops._converge_iface("en5", {"mode": "static", "ip": "10.99.1.10",
+    routeops._converge_iface("en5", {"mode": "static", "ip": "10.199.1.10",
                                      "mask": "255.255.255.0"}, handback=False)
     assert net.configs[service]["mode"] == "static"
 
@@ -1090,7 +1090,7 @@ def test_handback_dns_flag_skips_dns_restore(net_env):
         "缺省要连 DNS 一起还原"
 
     # 重新钉回静态，再试 skip_dns=True ⇒ 只 -setdhcp，不碰 DNS
-    routeops._converge_iface("en5", {"mode": "static", "ip": "10.99.1.10",
+    routeops._converge_iface("en5", {"mode": "static", "ip": "10.199.1.10",
                                      "mask": "255.255.255.0"}, handback=False)
     net.cmds.clear()
     res2 = routeops._converge_iface("en5", {}, handback=True, skip_dns=True)
@@ -1105,7 +1105,7 @@ def test_apply_net_handback_dns_flag_skips_dns(net_env):
     service = net.define("en5", mode="dhcp", ip="192.168.1.5",
                          mask="255.255.255.0", gateway="192.168.1.1")
     routeops.ensure_baseline(service, "en5", routeops.read_service_config(service))
-    routeops._converge_iface("en5", {"mode": "static", "ip": "10.99.1.10",
+    routeops._converge_iface("en5", {"mode": "static", "ip": "10.199.1.10",
                                      "mask": "255.255.255.0"}, handback=False)
 
     net.cmds.clear()
@@ -1118,7 +1118,7 @@ def test_apply_net_handback_dns_flag_skips_dns(net_env):
 def test_restore_baseline_without_snapshot_writes_nothing(net_env):
     """baseline 缺失一律不猜：宁可不交还，也不替用户编一份配置写下去。"""
     _src, _table, net = net_env
-    service = net.define("en5", mode="static", ip="10.99.1.10",
+    service = net.define("en5", mode="static", ip="10.199.1.10",
                          mask="255.255.255.0")
     assert routeops.read_baseline() == {}
     assert routeops._restore_baseline(service) is False
@@ -1274,8 +1274,8 @@ def test_apply_net_converges_then_hands_back_then_goes_idle(net_env, monkeypatch
     _src, _table, net = net_env
     service = net.define("en5", mode="dhcp", ip="192.168.1.5",
                          mask="255.255.255.0", gateway="192.168.1.1")
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0",
-           "gateway": "10.99.1.254"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0",
+           "gateway": "10.199.1.254"}
 
     data = {"paused": False, "handback": [], "rules": [
         {"iface": "en5", "apply": False, "net": cfg},      # 不该生效的那个
@@ -1314,7 +1314,7 @@ def test_apply_net_paused_keeps_hands_off_but_still_hands_back(net_env, monkeypa
     _src, _table, net = net_env
     service = net.define("en5", mode="dhcp", ip="192.168.1.5",
                          mask="255.255.255.0", gateway="192.168.1.1")
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0"}
 
     # 停用 + 规则里 apply=True（暂停态下 app 算的是「沿用上轮」）⇒ 仍然不写
     paused = routeops._apply_net(
@@ -1335,7 +1335,7 @@ def test_apply_net_paused_keeps_hands_off_but_still_hands_back(net_env, monkeypa
 
     # 停用 ⇒ 连回滚窗口都不探（代价是停用期间失联不会自动回滚，那正是「保持现状」）
     prev = {"action": "applied", "service": service, "iface": "en5",
-            "wrote": {"ip": "10.99.1.10"}, "applied_at": _NOW}
+            "wrote": {"ip": "10.199.1.10"}, "applied_at": _NOW}
     monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: [])
     out = routeops._apply_net({"paused": True, "handback": [], "rules": []}, prev, _NOW + 10)
     assert out["action"] == "frozen", "停用期间不回滚"
@@ -1349,10 +1349,10 @@ def test_apply_net_rollback_outranks_convergence(net_env, monkeypatch):
     _src, _table, net = net_env
     service = net.define("en5", mode="dhcp")
     routeops.ensure_baseline(service, "en5", routeops.read_service_config(service))
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0"}
     # 上一轮真写过（写下去的东西现在不在网卡上了 —— 被改掉 / 丢了）
     routeops._converge_iface("en5", cfg, handback=False)
-    net.configs[service]["ip"] = "10.99.1.99"
+    net.configs[service]["ip"] = "10.199.1.99"
     monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: [])
     prev = {"action": "applied", "service": service, "iface": "en5",
             "wrote": {**cfg, "gateway": "", "dns": []}, "net": cfg,
@@ -1378,7 +1378,7 @@ def test_apply_net_skips_rewriting_right_after_a_rollback(net_env, monkeypatch):
     service = net.define("en5", mode="dhcp")
     routeops.ensure_baseline(service, "en5", routeops.read_service_config(service))
     monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: [])
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0"}
     rolled = {"action": "rolled_back", "rolled_back": True, "service": service,
               "iface": "en5", "wrote": {**cfg, "gateway": "", "dns": []},
               "net": cfg, "applied_at": _NOW + 4}
@@ -1393,7 +1393,7 @@ def test_apply_net_skips_rewriting_right_after_a_rollback(net_env, monkeypatch):
     # 用户改了配置（意图变了）⇒ 该重试
     routeops._apply_net(
         {"paused": False, "handback": [],
-         "rules": [{"iface": "en5", "apply": True, "net": {**cfg, "ip": "10.99.1.11"}}]},
+         "rules": [{"iface": "en5", "apply": True, "net": {**cfg, "ip": "10.199.1.11"}}]},
         rolled, _NOW + 10)
     assert [c[1] for c in net.writes()] == ["-setmanual"], "换了一份配置就该重试"
 
@@ -1413,14 +1413,14 @@ def test_read_lease_parses_getpacket_and_never_invents_an_address(net_env):
     一个地址出来。这三种情况在网卡被固化期间是**常态**，不是错误。
     """
     _src, _table, net = net_env
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254",
-               dns=("10.99.1.254", "8.8.8.8"), lease_time="0x001c20",
-               server="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254",
+               dns=("10.199.1.254", "8.8.8.8"), lease_time="0x001c20",
+               server="10.199.1.254")
 
     lease = routeops.read_lease("en5")
-    assert lease == {"ip": "10.99.1.21", "mask": "255.255.255.0",
-                     "gateway": "10.99.1.254", "dns": ["10.99.1.254", "8.8.8.8"],
-                     "lease_time": 7200, "server": "10.99.1.254"}
+    assert lease == {"ip": "10.199.1.21", "mask": "255.255.255.0",
+                     "gateway": "10.199.1.254", "dns": ["10.199.1.254", "8.8.8.8"],
+                     "lease_time": 7200, "server": "10.199.1.254"}
 
     # 我们固化着 ⇒ getpacket 必然失败 ⇒ 没有租约可读
     net.packets.clear()
@@ -1437,14 +1437,14 @@ def test_run_op_renew_pins_the_new_lease_not_the_one_we_wrote(net_env, monkeypat
     「点了『恢复 DHCP』之后网卡会不会真的变好」这条链路的判据就在这一条里：
     先真的 ``-setdhcp`` → 等新租约落到网卡上 → 用**那份新租约**重算目标再 ``-setmanual``。
 
-    第三步的数据来源是重点。写死成「读网卡此刻的配置」时读回来的正是 10.99.1.10
+    第三步的数据来源是重点。写死成「读网卡此刻的配置」时读回来的正是 10.199.1.10
     （我们自己上次固化下去的那个）⇒ 网卡转一圈回原地，用户看到「点了没用」。
     """
     _src, _table, net = net_env
-    service = net.define("en5", mode="static", ip="10.99.1.10",
-                         mask="255.255.255.0", gateway="10.99.1.254")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
-    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.99.1.21"])
+    service = net.define("en5", mode="static", ip="10.199.1.10",
+                         mask="255.255.255.0", gateway="10.199.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
+    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.199.1.21"])
     net.cmds.clear()
 
     out = routeops._apply_op(
@@ -1453,14 +1453,14 @@ def test_run_op_renew_pins_the_new_lease_not_the_one_we_wrote(net_env, monkeypat
         _NOW)
 
     assert [c[1] for c in net.writes()] == ["-setdhcp", "-setmanual"], "先交还、再固化"
-    assert net.writes()[1][3:5] == ["10.99.1.21", "255.255.255.0"], \
+    assert net.writes()[1][3:5] == ["10.199.1.21", "255.255.255.0"], \
         "固化的是新租约，不是我们自己上次写下去的那个"
     assert net.configs[service]["mode"] == "static"          # 落盘形态：切 Manual 写死
-    assert net.configs[service]["ip"] == "10.99.1.21"
+    assert net.configs[service]["ip"] == "10.199.1.21"
     assert out["action"] == "applied" and out["managed"] is True
     assert out["mode"] == routeops.MODE_DHCP_PIN
     assert out["error"] is None
-    assert out["result"] == "pinned" and out["ip"] == "10.99.1.21"
+    assert out["result"] == "pinned" and out["ip"] == "10.199.1.21"
 
 
 def test_run_op_renew_reports_when_no_new_lease_arrives(net_env, monkeypatch):
@@ -1469,7 +1469,7 @@ def test_run_op_renew_reports_when_no_new_lease_arrives(net_env, monkeypatch):
     宁可这一次没做成、把话讲清楚，也不要拿一份过期（或自己造的）地址去固化。
     """
     _src, _table, net = net_env
-    net.define("en5", mode="static", ip="10.99.1.10", mask="255.255.255.0")
+    net.define("en5", mode="static", ip="10.199.1.10", mask="255.255.255.0")
     monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: [])
     real_wait = routeops._wait_lease
     # 真等 10 秒会把这个用例拖成慢例；把时限压到 0，走的仍是同一段代码
@@ -1518,7 +1518,7 @@ def test_run_op_reports_a_failed_handback_and_stops_there(net_env):
     再写一遍只是白写 —— 但若照着租约写，那张网卡就真的收不到地址了。
     """
     _src, _table, net = net_env
-    net.define("en5", mode="static", ip="10.99.1.10", mask="255.255.255.0")
+    net.define("en5", mode="static", ip="10.199.1.10", mask="255.255.255.0")
     net.broken.add("-setdhcp")
     net.cmds.clear()
 
@@ -1544,8 +1544,8 @@ def test_commands_never_ride_the_scene_pass(net_env):
     的就是这个结构 —— 「排在前面的那条路」不复存在，也就无从被后面的策略挡住。
     """
     _src, _table, net = net_env
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0",
-           "gateway": "10.99.1.254"}
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0",
+           "gateway": "10.199.1.254"}
     net.define("en5", mode="dhcp", ip="192.168.1.5", mask="255.255.255.0",
                gateway="192.168.1.1")
     net.cmds.clear()
@@ -1608,9 +1608,9 @@ def test_cycle_writes_net_segment_then_hands_it_back(net_env):
     src, table, net = net_env
     service = net.define("en5", mode="dhcp", ip="192.168.1.5",
                          mask="255.255.255.0", gateway="192.168.1.1")
-    table.packet_gateways = ["10.99.1.254"]
-    cfg = {"mode": "static", "ip": "10.99.1.10", "mask": "255.255.255.0",
-           "gateway": "10.99.1.254"}
+    table.packet_gateways = ["10.199.1.254"]
+    cfg = {"mode": "static", "ip": "10.199.1.10", "mask": "255.255.255.0",
+           "gateway": "10.199.1.254"}
 
     routeops.run_cycle(_intent_text([_apply({**OFFICE, "net": cfg}, True)]))
     state = _observed_route()
@@ -1639,11 +1639,11 @@ def test_net_write_clears_the_router_when_pin_omits_it(net_env):
     2026-10-19 用户裁定；此前那版「保留」是错的。
     """
     _src, _table, net = net_env
-    service = net.define("en5", mode="static", ip="10.99.1.99",
-                         mask="255.255.255.0", gateway="10.99.1.1")
+    service = net.define("en5", mode="static", ip="10.199.1.99",
+                         mask="255.255.255.0", gateway="10.199.1.1")
     rule = {**OFFICE, "gateway": "",
             "net": {"mode": "dhcp",
-                    "pin": {"ip": "10.99.1.56", "mask": "255.255.255.0"}}}
+                    "pin": {"ip": "10.199.1.56", "mask": "255.255.255.0"}}}
 
     routeops.run_cycle(_intent_text([_apply(rule, True)]))
     writes = [c for c in net.cmds if len(c) > 1 and c[1] == "-setmanual"]
@@ -1651,7 +1651,7 @@ def test_net_write_clears_the_router_when_pin_omits_it(net_env):
     assert len(writes[-1]) == 5, "pin 没声明网关 ⇒ 命令里就没有 router（＝清空）"
     assert net.configs[service]["gateway"] == "", "网卡上不能留下旧 router"
     # 抹掉归抹掉，账不能丢：下一跳仍从这里取（同轮就要用它叠路由）
-    assert _observed_route()["net_gateways"]["en5"]["gateway"] == "10.99.1.1"
+    assert _observed_route()["net_gateways"]["en5"]["gateway"] == "10.199.1.1"
 
 
 def test_net_manual_without_router_is_not_rewritten_every_cycle(net_env):
@@ -1661,11 +1661,11 @@ def test_net_manual_without_router_is_not_rewritten_every_cycle(net_env):
     这类非 IP 读数归成空；否则每一轮都判漂移，30 秒重配一次网卡。
     """
     _src, _table, net = net_env
-    service = net.define("en5", mode="static", ip="10.99.1.56",
+    service = net.define("en5", mode="static", ip="10.199.1.56",
                          mask="255.255.255.0", gateway="(null)")
     rule = {**OFFICE, "gateway": "",
             "net": {"mode": "dhcp",
-                    "pin": {"ip": "10.99.1.56", "mask": "255.255.255.0"}}}
+                    "pin": {"ip": "10.199.1.56", "mask": "255.255.255.0"}}}
 
     routeops.run_cycle(_intent_text([_apply(rule, True)]))
     assert [c for c in net.writes() if c[1] == "-setmanual"] == [], "已到位就不写"
@@ -1697,7 +1697,7 @@ def test_pin_then_restart_recovers_from_snapshot(net_env):
     """固化 → 守护重启（快照灌回）⇒ 首轮稳态早退，不读租约、不写网卡。"""
     _src, _table, net = net_env
     service = net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")
 
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     assert _observed_route()["net"]["action"] == "applied"
@@ -1708,7 +1708,7 @@ def test_pin_then_restart_recovers_from_snapshot(net_env):
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     seg = _observed_route()["net"]
     assert seg["action"] == "applied" and seg["managed"] is True
-    assert seg["wrote"]["ip"] == "10.99.1.21"
+    assert seg["wrote"]["ip"] == "10.199.1.21"
     assert net.writes() == [], "重启后网卡已停在目标那一份上 ⇒ 不许再写"
 
 
@@ -1720,7 +1720,7 @@ def test_pin_survives_a_restart_even_when_the_books_are_gone(net_env):
     """
     _src, _table, net = net_env
     service = net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     assert _observed_route()["net"]["action"] == "applied"
 
@@ -1732,9 +1732,9 @@ def test_pin_survives_a_restart_even_when_the_books_are_gone(net_env):
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     seg = _observed_route()["net"]
     assert seg["action"] == "applied" and seg["error"] is None
-    assert seg["managed"] is True and seg["wrote"]["ip"] == "10.99.1.21"
+    assert seg["managed"] is True and seg["wrote"]["ip"] == "10.199.1.21"
     assert net.writes() == [], "网卡已经停在该停的那份上 ⇒ 一条写命令都不该有"
-    assert net.configs[service]["ip"] == "10.99.1.21"
+    assert net.configs[service]["ip"] == "10.199.1.21"
 
 
 def test_a_latched_failure_heals_on_the_next_round(net_env):
@@ -1745,8 +1745,8 @@ def test_a_latched_failure_heals_on_the_next_round(net_env):
     自愈这一轮顺手抹掉（一次写），之后不再写。
     """
     _src, _table, net = net_env
-    service = net.define("en5", mode="static", ip="10.99.1.21",
-                         mask="255.255.255.0", gateway="10.99.1.254")
+    service = net.define("en5", mode="static", ip="10.199.1.21",
+                         mask="255.255.255.0", gateway="10.199.1.254")
     helper_state.record(helper_state.SUBJECT_ROUTE, {
         "ok": True, "checked_at": 1, "poll": 30, "error": None, "paused": False,
         "has_intent": True, "rules": [],
@@ -1759,10 +1759,10 @@ def test_a_latched_failure_heals_on_the_next_round(net_env):
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     seg = _observed_route()["net"]
     assert seg["action"] == "applied" and seg["error"] is None
-    assert seg["managed"] is True and seg["wrote"]["ip"] == "10.99.1.21"
+    assert seg["managed"] is True and seg["wrote"]["ip"] == "10.199.1.21"
     assert [c for c in net.writes() if c[1] == "-setmanual"] == [
         ["/usr/sbin/networksetup", "-setmanual", service,
-         "10.99.1.21", "255.255.255.0"]], "只写一次，且把不该留的 router 抹掉"
+         "10.199.1.21", "255.255.255.0"]], "只写一次，且把不该留的 router 抹掉"
     assert net.configs[service]["gateway"] == ""
 
     # 下一轮：账已经在，steady ⇒ 一条写命令都不该有
@@ -1774,7 +1774,7 @@ def test_transient_read_failure_does_not_latch_the_state_machine(net_env):
     """启动竞态：首轮读不出网卡配置报失败，恢复后下一轮就该回来（不许锁死）。"""
     _src, _table, net = net_env
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     assert _observed_route()["net"]["action"] == "applied"
 
@@ -1813,10 +1813,10 @@ def test_missing_lease_on_a_dhcp_nic_is_still_an_honest_failure(net_env):
     assert net.writes() == []
 
     # 租约到了 ⇒ 下一轮自愈成固化
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")
     routeops.run_cycle(_intent_text([_apply(_pin_rule(), True)]))
     seg = _observed_route()["net"]
-    assert seg["action"] == "applied" and seg["wrote"]["ip"] == "10.99.1.21"
+    assert seg["action"] == "applied" and seg["wrote"]["ip"] == "10.199.1.21"
 
 
 class _FakeClock:
@@ -1838,7 +1838,7 @@ def test_applied_at_is_stamped_by_the_round_that_really_wrote(net_env, monkeypat
     """
     _src, _table, net = net_env
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")
     helper_state._OBSERVED.clear()          # 内存账是进程级的，先清再演
     clock = _FakeClock(1000)
     monkeypatch.setattr(routeops_cycle, "time", clock)
@@ -1846,7 +1846,7 @@ def test_applied_at_is_stamped_by_the_round_that_really_wrote(net_env, monkeypat
     monkeypatch.setattr(routeops_baseline, "time", clock)
     # 假网卡没有 ``inet`` 行 ⇒ 真读会返回空 ⇒ 窗口一通就判「失联」。这里演的是
     # 「写下去的地址还在」的正常稳态，探针必须照实给地址。
-    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.99.1.21"])
+    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.199.1.21"])
 
     intent = _intent_text([_apply(_pin_rule(), True)])
     routeops.run_cycle(intent)                          # 真写这一轮
@@ -1902,7 +1902,7 @@ def test_rollback_fires_on_the_next_beat(net_env, monkeypatch):
     """
     _src, _table, net = net_env
     service = net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")
     helper_state._OBSERVED.clear()          # 内存账是进程级的，先清再演
     clock = _FakeClock(1000)
     monkeypatch.setattr(routeops_cycle, "time", clock)
@@ -1941,13 +1941,13 @@ def test_iface_up(helper_env):
 
 def test_current_gateways_packet_first_then_default(helper_env):
     src, table = helper_env
-    table.packet_gateways = ["10.99.1.254", "10.99.1.253"]
+    table.packet_gateways = ["10.199.1.254", "10.199.1.253"]
     gws = routeops.current_gateways("en5")
-    assert gws == ["10.99.1.254", "10.99.1.253"]
+    assert gws == ["10.199.1.254", "10.199.1.253"]
     # 无 DHCP 报文（静态 IP）→ 降级 route -n get default
     table.packet_gateways = []
-    table.default_gateway = "10.9.9.9"
-    assert routeops.current_gateways("en5") == ["10.9.9.9"]
+    table.default_gateway = "10.209.9.9"
+    assert routeops.current_gateways("en5") == ["10.209.9.9"]
 
 
 def test_helper_has_no_matching_policy(helper_env):
@@ -2333,8 +2333,8 @@ def test_build_routes_ok():
     assert "version" not in data
     rule = data["rules"][0]
     # 新模型编译回旧的线格式字段，一字不变（helper 已装在机器上）
-    assert (rule["name"], rule["iface"], rule["gateway"]) == ("office", "en5", "10.99.1.254")
-    assert rule["destinations"] == ["10.99.2.0/24"]
+    assert (rule["name"], rule["iface"], rule["gateway"]) == ("office", "en5", "10.199.1.254")
+    assert rule["destinations"] == ["10.199.2.0/24"]
     # 缺省无 paused 字段；enabled 透传为 True
     assert "paused" not in data
     assert rule["enabled"] is True
@@ -2363,7 +2363,7 @@ def test_build_routes_ignores_framework_poll_key():
 
 def test_build_routes_paused_and_enabled():
     cfg = {"helper_poll": 30, "paused": True,
-           "profiles": [_profile(routes={"enabled": False, "items": [{"destination": "10.99.2.0/24", "via": "10.99.1.254"}]})]}
+           "profiles": [_profile(routes={"enabled": False, "items": [{"destination": "10.199.2.0/24", "via": "10.199.1.254"}]})]}
     data = rules.build_routes(cfg)
     assert data["paused"] is True
     assert data["rules"][0]["enabled"] is False
@@ -2379,11 +2379,11 @@ def test_build_routes_keeps_disabled_scene_so_helper_can_remove_it():
     ``rules[].enabled`` 的那个位子，helper 早已认识。
     """
     data = rules.build_routes({"helper_poll": 30, "profiles": [
-        _profile(routes={"enabled": False, "items": [{"destination": "10.99.2.0/24"}]}),
+        _profile(routes={"enabled": False, "items": [{"destination": "10.199.2.0/24"}]}),
     ]})
     assert len(data["rules"]) == 1
     assert data["rules"][0]["enabled"] is False
-    assert data["rules"][0]["destinations"] == ["10.99.2.0/24"]   # 目标还在，helper 才有据可撤
+    assert data["rules"][0]["destinations"] == ["10.199.2.0/24"]   # 目标还在，helper 才有据可撤
 
 
 def test_build_routes_lets_each_item_switch_itself():
@@ -2397,16 +2397,16 @@ def test_build_routes_lets_each_item_switch_itself():
     data = rules.build_routes({"helper_poll": 30, "profiles": [_profile(routes={
         "enabled": True,
         "items": [
-            {"destination": "10.99.2.0/24"},
-            {"destination": "10.2.0.0/16", "enabled": False},
-            {"destination": "10.3.0.0/16", "enabled": True},
+            {"destination": "10.199.2.0/24"},
+            {"destination": "10.202.0.0/16", "enabled": False},
+            {"destination": "10.203.0.0/16", "enabled": True},
         ],
     })]})
     rule = data["rules"][0]
     assert rule["enabled"] is True, "还有一条要叠 ⇒ 整条要叠"
-    assert rule["destinations"] == ["10.99.2.0/24", "10.2.0.0/16", "10.3.0.0/16"], \
+    assert rule["destinations"] == ["10.199.2.0/24", "10.202.0.0/16", "10.203.0.0/16"], \
         "停用的也留在 destinations 里 —— helper 只对意图里现存的目标增删"
-    assert rule["off_destinations"] == ["10.2.0.0/16"]
+    assert rule["off_destinations"] == ["10.202.0.0/16"]
 
 
 def test_build_routes_omits_off_destinations_when_nothing_to_remove():
@@ -2415,7 +2415,7 @@ def test_build_routes_omits_off_destinations_when_nothing_to_remove():
     同一条尺寸的另一个坑：目标被写了两遍（一遍启用、一遍停用）时**启用者胜** ——
     配置校验不拦重复目标，两套口径各判一次必分叉。
     """
-    same = {"destination": "10.99.2.0/24", "via": "10.99.1.254"}
+    same = {"destination": "10.199.2.0/24", "via": "10.199.1.254"}
     all_on = rules.build_routes({"helper_poll": 30, "profiles": [
         _profile(routes={"enabled": True, "items": [same]}),
     ]})["rules"][0]
@@ -2423,20 +2423,20 @@ def test_build_routes_omits_off_destinations_when_nothing_to_remove():
 
     all_off = rules.build_routes({"helper_poll": 30, "profiles": [
         _profile(routes={"enabled": True, "items": [
-            {"destination": "10.99.2.0/24", "enabled": False}]}),
+            {"destination": "10.199.2.0/24", "enabled": False}]}),
     ]})["rules"][0]
     assert all_off["enabled"] is False, "一条都不叠 ⇒ 整条不叠"
     assert "off_destinations" not in all_off, "整条都在撤，逐目标那一栏没意义"
 
     scene_off = rules.build_routes({"helper_poll": 30, "profiles": [
         _profile(routes={"enabled": False, "items": [
-            same, {"destination": "10.2.0.0/16", "enabled": False}]}),
+            same, {"destination": "10.202.0.0/16", "enabled": False}]}),
     ]})["rules"][0]
     assert scene_off["enabled"] is False and "off_destinations" not in scene_off
 
     dup = rules.build_routes({"helper_poll": 30, "profiles": [
         _profile(routes={"enabled": True, "items": [
-            same, {"destination": "10.99.2.0/24", "enabled": False}]}),
+            same, {"destination": "10.199.2.0/24", "enabled": False}]}),
     ]})["rules"][0]
     assert dup["enabled"] is True and "off_destinations" not in dup, "启用者胜"
 
@@ -2547,10 +2547,10 @@ def test_build_routes_rejects_multi_via_until_helper_upgrade():
     """多下一跳今天仍表达不了 → 报错，而不是静默丢房子。"""
     with pytest.raises(rules.RouteConfigError) as e:
         rules.build_routes({"helper_poll": 30, "profiles": [
-            _profile(destinations=("10.99.2.0/24", "10.2.0.0/16"),
+            _profile(destinations=("10.199.2.0/24", "10.202.0.0/16"),
                      routes={"enabled": True, "items": [
-                         {"destination": "10.99.2.0/24", "via": "10.99.1.254"},
-                         {"destination": "10.2.0.0/16", "via": "10.9.0.1"},
+                         {"destination": "10.199.2.0/24", "via": "10.199.1.254"},
+                         {"destination": "10.202.0.0/16", "via": "10.209.0.1"},
                      ]}),
         ]})
     assert "多下一跳" in str(e.value)
@@ -2654,7 +2654,7 @@ def test_build_routes_invalid_raises():
         rules.build_routes({"helper_poll": "fast", "profiles": []})
     with pytest.raises(RouteConfigError):
         rules.build_routes({"helper_poll": 30, "profiles": [
-            _profile(routes={"enabled": True, "items": [{"destination": "10.99.2.0/999"}]})]})
+            _profile(routes={"enabled": True, "items": [{"destination": "10.199.2.0/999"}]})]})
     with pytest.raises(RouteConfigError):
         rules.build_routes({"helper_poll": 30, "paused": "yes", "profiles": []})
     with pytest.raises(RouteConfigError):
@@ -2672,10 +2672,10 @@ def test_validate_profile_covers_new_shape():
     assert rules.validate_profile(_profile(manual_only=True)) is None
     # net.static 带 IP，或 dhcp 带 pin 固化（§2.5）
     assert rules.validate_profile(_profile(
-        net={"mode": "static", "ip": "192.168.11.5", "mask": "255.255.255.0",
-             "gateway": "192.168.11.1", "dns": ["8.8.8.8"]})) is None
+        net={"mode": "static", "ip": "192.168.110.5", "mask": "255.255.255.0",
+             "gateway": "192.168.110.1", "dns": ["8.8.8.8"]})) is None
     assert rules.validate_profile(_profile(
-        net={"mode": "dhcp", "pin": {"ip": "192.168.2.88", "mask": "255.255.255.0"}})) is None
+        net={"mode": "dhcp", "pin": {"ip": "192.168.21.88", "mask": "255.255.255.0"}})) is None
     # 「照抄租约」（§2.5 的补充）：只写 true 的开关合法
     assert rules.validate_profile(_profile(
         net={"mode": "dhcp", "pin": {"ip": "", "mask": "",
@@ -2687,7 +2687,7 @@ def test_validate_profile_covers_new_shape():
     )) is not None
     # 非法：照抄与写死值互斥（app 侧与 helper 侧同一份口径，只认一边会让配置「只有一半说得通」）
     assert rules.validate_profile(_profile(
-        net={"mode": "dhcp", "pin": {"ip": "", "mask": "", "gateway": "10.99.1.254",
+        net={"mode": "dhcp", "pin": {"ip": "", "mask": "", "gateway": "10.199.1.254",
                                      "gateway_from_lease": True}}
     )) is not None
     assert rules.validate_profile(_profile(
@@ -2726,10 +2726,10 @@ def test_shipped_default_profiles_compile_like_the_old_default_rules():
     old_doc = {
         "poll": 30,
         "rules": [
-            {"name": "office", "priority": 0, "iface": "en5", "gateway": "10.99.1.254",
-             "destinations": ["10.99.2.0/24", "10.2.0.0/16", "192.168.100.5/32"],
+            {"name": "office", "priority": 0, "iface": "en5", "gateway": "10.199.1.254",
+             "destinations": ["10.199.2.0/24", "10.202.0.0/16", "192.168.200.5/32"],
              "enabled": True},
-            {"name": "home", "priority": 1, "iface": "en6", "gateway": "192.168.2.1",
+            {"name": "home", "priority": 1, "iface": "en6", "gateway": "192.168.21.1",
              "destinations": ["172.16.0.0/16"], "enabled": True},
         ],
     }
@@ -2755,7 +2755,7 @@ def test_legacy_rules_section_is_left_untouched_by_plugin(tmp_path, monkeypatch)
         "plugins:\n  route_guard:\n    enabled: true\n"
         "    rules:\n"
         "      - name: office\n        priority: 3\n        iface: en5\n"
-        "        gateway: 10.99.1.254\n        destinations: [10.99.2.0/24]\n"
+        "        gateway: 10.199.1.254\n        destinations: [10.199.2.0/24]\n"
     )
     ctx = _ctx(tmp_path, body=body)
     monkeypatch.setattr(daemon, "status", lambda: {"installed": True, "running": True})
@@ -2935,7 +2935,7 @@ def test_tick_returns_four_snapshots(tmp_path, monkeypatch):
     _push_route(plugin, {"ok": True, "checked_at": 1700000000, "rules": [
         {"name": "office", "matched": True, "applied": True, "enabled": True,
          "trigger_matched": True,
-         "destinations": [{"ok": True, "destination": "10.99.2.0/24"}]}
+         "destinations": [{"ok": True, "destination": "10.199.2.0/24"}]}
     ]})
     snaps = plugin.tick()
     assert set(snaps) == {"daemon", "net", "routes", "profile"}, "四台机的键固定"
@@ -3036,11 +3036,11 @@ def _echo(rules: list[dict], *, ok: bool = True, error=None) -> dict:
     return {"ok": ok, "checked_at": 1700000000, "error": error, "rules": rules}
 
 
-def _rule(name="office", *, applied=True, matched=True, enabled=True, dests=("10.99.2.0/24",),
+def _rule(name="office", *, applied=True, matched=True, enabled=True, dests=("10.199.2.0/24",),
           dest_ok=True) -> dict:
     return {
         "name": name, "applied": applied, "enabled": enabled,
-        "trigger_matched": matched, "iface": "en5", "gateway": "10.99.1.254",
+        "trigger_matched": matched, "iface": "en5", "gateway": "10.199.1.254",
         "destinations": [{"destination": d, "ok": dest_ok} for d in dests],
     }
 
@@ -3134,16 +3134,16 @@ def test_routes_machine_reads_helper_echo(tmp_path, monkeypatch):
     assert rep.state == "failed" and "未知字段" in rep.summary
 
     # 全部叠上
-    plugin._state = _echo([_rule(dests=("10.99.2.0/24", "10.2.0.0/16"))])
+    plugin._state = _echo([_rule(dests=("10.199.2.0/24", "10.202.0.0/16"))])
     rep = plugin._routes_report()
     assert (rep.state, rep.summary) == ("applied", "已叠加 2 条")
 
     # 一半成功一半失败 ⇒ 部分叠加（WARN），不是 ERR
     plugin._state = {
         "ok": True, "rules": [{
-            **_rule(dests=("10.99.2.0/24", "10.2.0.0/16")),
-            "destinations": [{"destination": "10.99.2.0/24", "ok": True},
-                             {"destination": "10.2.0.0/16", "ok": False}],
+            **_rule(dests=("10.199.2.0/24", "10.202.0.0/16")),
+            "destinations": [{"destination": "10.199.2.0/24", "ok": True},
+                             {"destination": "10.202.0.0/16", "ok": False}],
         }],
     }
     rep = plugin._routes_report()
@@ -3202,7 +3202,7 @@ def test_row_subtitle_speaks_for_all_three_machines(tmp_path, monkeypatch):
     plugin._daemon_status = {"installed": True, "running": True, "outdated": False}
 
     plugin._state = _echo([
-        _rule(dests=("10.99.2.0/24", "10.2.0.0/16", "192.168.100.5/32")),
+        _rule(dests=("10.199.2.0/24", "10.202.0.0/16", "192.168.200.5/32")),
     ])
     assert plugin._row_subtitle() == "网关命中 · 已叠加 3 条"
 
@@ -3252,12 +3252,12 @@ def test_row_subtitle_says_why_the_scene_matched(tmp_path, monkeypatch):
         "        routes:\n"
         "          enabled: true\n"
         "          items:\n"
-        "            - {{destination: 10.99.2.0/24, via: 10.99.1.254}}\n"
+        "            - {{destination: 10.199.2.0/24, via: 10.199.1.254}}\n"
     )
     cases = [
-        ("{gateway: 10.99.1.254}", "网关命中"),
-        ("{subnet: 10.8.0.0/16}", "网段命中"),
-        ("{gateway: 10.99.1.254, subnet: 10.8.0.0/16}", "网段与网关命中"),
+        ("{gateway: 10.199.1.254}", "网关命中"),
+        ("{subnet: 10.208.0.0/16}", "网段命中"),
+        ("{gateway: 10.199.1.254, subnet: 10.208.0.0/16}", "网段与网关命中"),
         ("{}", "网卡在线命中"),
     ]
     for cond, want in cases:
@@ -3297,7 +3297,7 @@ def test_row_subtitle_separates_this_time_from_config(tmp_path, monkeypatch):
 def test_row_subtitle_says_what_is_frozen_when_paused(tmp_path, monkeypatch):
     """停用句必须写明代价：路由**仍生效**（§3.2 要求停用不撒谎 + 显式写出后果）。"""
     plugin = _plugin(tmp_path, monkeypatch)
-    plugin._state = _echo([_rule(dests=("10.99.2.0/24", "10.2.0.0/16"))])
+    plugin._state = _echo([_rule(dests=("10.199.2.0/24", "10.202.0.0/16"))])
     plugin.set_paused(True)
     assert plugin._row_subtitle() == "已停用 · 保持现状，路由仍生效（2 条）"
 
@@ -3328,7 +3328,7 @@ def test_illegal_config_reports_failed_and_keeps_component_loaded(tmp_path, monk
         "plugins:\n  route_guard:\n    enabled: true\n"
         "    rules:\n"
         "      - name: office\n        priority: 3\n        iface: en5\n"
-        "        gateway: 10.99.1.254\n        destinations: [10.99.2.0/24]\n"
+        "        gateway: 10.199.1.254\n        destinations: [10.199.2.0/24]\n"
     )
     ctx = _ctx(tmp_path, body=body)
     monkeypatch.setattr(daemon, "status", lambda: {
@@ -3462,7 +3462,7 @@ def test_switch_reflects_intent_not_result(tmp_path, monkeypatch):
     plugin = _plugin(tmp_path, monkeypatch)
     plugin._state = {"ok": True, "rules": [
         {"name": "office", "trigger_matched": True, "applied": True,
-         "destinations": [{"destination": "10.99.2.0/24", "ok": True}]},
+         "destinations": [{"destination": "10.199.2.0/24", "ok": True}]},
     ]}
     assert plugin._switch_checked() is True          # 按配置 ⇒ 开
     plugin.set_routes_suppressed("office", True)
@@ -3477,7 +3477,7 @@ def test_suppression_note_distinguishes_this_time_from_config(tmp_path, monkeypa
     plugin = _plugin(tmp_path, monkeypatch)
     plugin._state = {"ok": True, "rules": [
         {"name": "office", "trigger_matched": True, "applied": False,
-         "destinations": [{"destination": "10.99.2.0/24", "ok": False}]},
+         "destinations": [{"destination": "10.199.2.0/24", "ok": False}]},
     ]}
     plugin.set_routes_suppressed("office", True)
     assert "本次已撤回" in plugin._suppression_note()
@@ -3537,8 +3537,8 @@ def test_panel_widget_shows_switch(tmp_path, monkeypatch, qtbot):
         "rules": [{
             "name": "office", "matched": True, "trigger_matched": True,
             "applied": True, "enabled": True, "iface": "en5",
-            "gateway": "10.99.1.254",
-            "destinations": [{"destination": "10.99.2.0/24", "ok": True}],
+            "gateway": "10.199.1.254",
+            "destinations": [{"destination": "10.199.2.0/24", "ok": True}],
         }],
     }
     panel = StatusPanel()
@@ -3915,7 +3915,7 @@ def test_config_form_starts_from_effective_scenes(tmp_path, monkeypatch, qtbot):
     assert page._editing == 0, "默认选中第一条"
     assert page._name.text() == "office"
     assert page._iface.text() == "en5"
-    assert page._gw.text() == "10.99.1.254"
+    assert page._gw.text() == "10.199.1.254"
     assert page._routes_on.isChecked() is True
     assert "当前生效" in page._status.text(), "顶部只读状态条要说「现在谁在管」"
     plugin.stop()
@@ -3941,7 +3941,7 @@ def test_config_form_edit_waits_for_the_save_key(tmp_path, monkeypatch, qtbot):
 
     saved = _user_profiles(tmp_path)
     assert [p["name"] for p in saved] == ["office2", "home"]
-    assert saved[0]["ifaces"] == ["en5"] and saved[0]["match"] == {"gateway": "10.99.1.254"}
+    assert saved[0]["ifaces"] == ["en5"] and saved[0]["match"] == {"gateway": "10.199.1.254"}
 
     # 期望态跟着重建：列表顺序即优先级（priority = 下标）
     data = plugin.ctx.helper.declared()
@@ -4007,11 +4007,11 @@ def test_config_form_keeps_keys_it_does_not_manage(tmp_path, monkeypatch, qtbot)
             "      - name: office\n"
             "        ifaces: [en5]\n"
             "        manual_only: true\n"
-            "        match: {subnet: 10.99.1.0/24}\n"
-            "        net: {mode: dhcp, pin: {ip: 10.99.1.88, mask: 255.255.255.0}}\n"
+            "        match: {subnet: 10.199.1.0/24}\n"
+            "        net: {mode: dhcp, pin: {ip: 10.199.1.88, mask: 255.255.255.0}}\n"
             "        routes:\n"
             "          enabled: true\n"
-            "          items: [{destination: 10.99.2.0/24, via: 10.99.1.254}]\n"
+            "          items: [{destination: 10.199.2.0/24, via: 10.199.1.254}]\n"
         ),
     )
     page = _editor(plugin, qtbot)
@@ -4022,9 +4022,9 @@ def test_config_form_keeps_keys_it_does_not_manage(tmp_path, monkeypatch, qtbot)
     saved = _user_profiles(tmp_path)          # 直接读盘，不是读内存
     assert saved[0]["name"] == "office-renamed"
     assert saved[0]["manual_only"] is True
-    assert saved[0]["match"] == {"subnet": "10.99.1.0/24"}, "网关清空后 match 里别的键也要在"
+    assert saved[0]["match"] == {"subnet": "10.199.1.0/24"}, "网关清空后 match 里别的键也要在"
     assert saved[0]["net"] == {
-        "mode": "dhcp", "pin": {"ip": "10.99.1.88", "mask": "255.255.255.0"},
+        "mode": "dhcp", "pin": {"ip": "10.199.1.88", "mask": "255.255.255.0"},
     }
     plugin.stop()
 
@@ -4094,9 +4094,9 @@ def test_config_form_delete_asks_inline_then_waits_for_save(tmp_path, monkeypatc
             "plugins:\n  route_guard:\n    enabled: true\n"
             "    profiles:\n"
             "      - name: a\n        ifaces: [en5]\n"
-            "        routes: {enabled: true, items: [{destination: 10.99.2.0/24, via: 1.1.1.1}]}\n"
+            "        routes: {enabled: true, items: [{destination: 10.199.2.0/24, via: 1.1.1.1}]}\n"
             "      - name: b\n        ifaces: [en6]\n"
-            "        routes: {enabled: true, items: [{destination: 10.2.0.0/16, via: 2.2.2.2}]}\n"
+            "        routes: {enabled: true, items: [{destination: 10.202.0.0/16, via: 2.2.2.2}]}\n"
         ),
     )
     page = _editor(plugin, qtbot)
@@ -4147,14 +4147,14 @@ def test_config_form_edits_route_items(tmp_path, monkeypatch, qtbot):
 
     # 改第 1 条：下一跳留空 = 不写 via，线格式回落 match.gateway
     _row, dest, via, _sw = page._item_rows[0]
-    dest.setText("10.9.9.0/24")
+    dest.setText("10.209.9.0/24")
     via.clear()
     dest.editingFinished.emit()
     assert page.dirty() is True
 
     # 加一条
     page._on_add_item()
-    page._item_rows[-1][1].setText("192.168.77.0/24")
+    page._item_rows[-1][1].setText("192.168.177.0/24")
     page._item_rows[-1][1].editingFinished.emit()
 
     # 删一条
@@ -4163,7 +4163,7 @@ def test_config_form_edits_route_items(tmp_path, monkeypatch, qtbot):
     assert _user_profiles(tmp_path) == [], "一路都是攒着"
     assert page.save()[0] is True
     items = _user_profiles(tmp_path)[0]["routes"]["items"]
-    assert items[0] == {"destination": "10.9.9.0/24"}, "改的那条写下去了"
+    assert items[0] == {"destination": "10.209.9.0/24"}, "改的那条写下去了"
     assert len(items) == 3, "加一条又删一条 ⇒ 仍是 3 条"
     plugin.stop()
 
@@ -4304,7 +4304,7 @@ def test_config_form_lease_checkbox_clears_and_locks_its_field(tmp_path, monkeyp
     page = _editor(plugin, qtbot)
     _set_net_mode(page, rg._NET_FORM_PIN)
 
-    page._net_gw.setText("10.99.1.254")
+    page._net_gw.setText("10.199.1.254")
     page._net_gw.editingFinished.emit()
     page._net_gw_lease.setChecked(True)
     assert page._net_gw.text() == "", "勾上照抄，同一格的旧值要当场清掉"
@@ -4415,23 +4415,23 @@ def test_subnet_only_profile_matches_end_to_end(monkeypatch):
     from barkit.plugins.route_guard import intent as intent_mod
 
     monkeypatch.setattr(intent_mod, "iface_up", lambda iface: True)
-    monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["192.168.11.5"])
+    monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["192.168.110.5"])
     monkeypatch.setattr(intent_mod, "current_gateways", lambda iface: [])
 
     cfg = {"helper_poll": 30, "profiles": [_profile(
-        match={"subnet": "192.168.11.0/24"},
+        match={"subnet": "192.168.110.0/24"},
         routes={"enabled": True, "items": [
-            {"destination": "10.99.2.0/24", "via": "10.99.1.254"}]},
+            {"destination": "10.199.2.0/24", "via": "10.199.1.254"}]},
     )]}
     compiled = rules.build_routes(cfg)
-    assert compiled["rules"][0]["subnet"] == "192.168.11.0/24", (
+    assert compiled["rules"][0]["subnet"] == "192.168.110.0/24", (
         "编译产物没带上 match.subnet ⇒ 探活拿不到判定依据"
     )
 
     intent_obj = intent_mod.build_intent(compiled)      # probe 缺省 ⇒ 真 network_probe
     assert intent_obj["rules"][0]["apply"] is True, "网段对上了却没生效"
 
-    monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["192.168.2.5"])
+    monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["192.168.21.5"])
     assert intent_mod.build_intent(compiled)["rules"][0]["apply"] is False
 
     # 而且 **subnet 不许漏进线格式**：helper 的 ``_RULE_FIELDS`` 白名单不认识它，
@@ -4463,8 +4463,8 @@ def test_badge_declares_a_scene_selector_not_an_automation_toggle(tmp_path, monk
     items = plugin.scene_items()
     assert [i.label for i in items] == ["office", "home"], "预设为空 ⇒ 不出现「恢复 DHCP」项"
     assert all(i.hint for i in items), "每项都要有摘要"
-    assert items[0].hint == "网关 10.99.1.254 · 3 条路由"
-    assert items[1].hint == "网关 192.168.2.1 · 1 条路由"
+    assert items[0].hint == "网关 10.199.1.254 · 3 条路由"
+    assert items[1].hint == "网关 192.168.21.1 · 1 条路由"
     assert items[0].on_click is not None, "「选中某项做什么」写在各自的 MenuItem 上"
     plugin.stop()
 
@@ -4585,14 +4585,14 @@ def test_renew_action_never_touches_scene_config(tmp_path, monkeypatch):
         "    profiles:\n"
         "      - name: office\n"
         "        ifaces: [en5]\n"
-        "        match: {gateway: 10.99.1.254}\n"
+        "        match: {gateway: 10.199.1.254}\n"
         "        net: {mode: dhcp, pin: {ip: '', mask: ''}}\n"
-        "        routes: {enabled: true, items: [{destination: 10.99.2.0/24, via: 10.99.1.254}]}\n"
+        "        routes: {enabled: true, items: [{destination: 10.199.2.0/24, via: 10.199.1.254}]}\n"
         "      - name: home\n"
         "        ifaces: [en6]\n"
-        "        match: {gateway: 192.168.2.1}\n"
+        "        match: {gateway: 192.168.21.1}\n"
         "        net: {mode: dhcp, pin: {ip: '', mask: ''}}\n"
-        "        routes: {enabled: true, items: [{destination: 192.168.3.0/24, via: 192.168.2.1}]}\n"
+        "        routes: {enabled: true, items: [{destination: 192.168.13.0/24, via: 192.168.21.1}]}\n"
     )
     plugin = _plugin(tmp_path, monkeypatch, body=body)
     plugin._daemon_status = {"installed": True, "running": True, "outdated": False}
@@ -4686,11 +4686,11 @@ def test_settings_page_lists_ifaces_as_checkboxes(tmp_path, monkeypatch, qtbot):
         "    profiles:\n"
         "      - name: office\n"
         "        ifaces: [en5]\n"
-        "        match: {subnet: 10.99.1.0/24}\n"
+        "        match: {subnet: 10.199.1.0/24}\n"
         "        routes: {enabled: true, items: []}\n"
         "      - name: home\n"
         "        ifaces: [en6]\n"
-        "        match: {gateway: 192.168.2.1}\n"
+        "        match: {gateway: 192.168.21.1}\n"
         "        routes: {enabled: true, items: []}\n"
     )
     plugin = _plugin(tmp_path, monkeypatch, body=body)
@@ -4784,7 +4784,7 @@ def test_badge_menu_hides_handback_when_preset_empty(tmp_path, monkeypatch):
     plugin._daemon_status = {"installed": True, "running": True, "outdated": False}
     plugin._state = {
         "net": {"iface": "en5", "service": "BarKit", "mode": "dhcp+pin",
-                "managed": True, "wrote": {"ip": "10.99.2.9"}, "action": "", "error": ""},
+                "managed": True, "wrote": {"ip": "10.199.2.9"}, "action": "", "error": ""},
     }
     labels = [i.label for i in plugin.scene_items()]
     assert "恢复 DHCP" not in labels, "预设为空 ⇒ 即便网卡正被接管也不出现"
@@ -4800,7 +4800,7 @@ def test_set_pinned_writes_yaml_and_beats_matching(tmp_path, monkeypatch):
     ``apply`` 一位里，产物里不许冒出这个键。
     """
     plugin = _plugin(tmp_path, monkeypatch)
-    _patched_network(monkeypatch, gateways={"10.99.1.254"})      # 只有 office 命中
+    _patched_network(monkeypatch, gateways={"10.199.1.254"})      # 只有 office 命中
     plugin.sync_routes()
     assert _apply_flags(plugin) == {"office": True, "home": False}
 
@@ -4829,7 +4829,7 @@ def test_set_pinned_writes_yaml_and_beats_matching(tmp_path, monkeypatch):
 def test_clear_pinned_returns_to_auto(tmp_path, monkeypatch):
     """取消手动指定 = 回到按网段 / 网关自动挑（§2.3 的 ``auto``）。"""
     plugin = _plugin(tmp_path, monkeypatch)
-    _patched_network(monkeypatch, gateways={"10.99.1.254"})
+    _patched_network(monkeypatch, gateways={"10.199.1.254"})
     plugin.set_pinned("home")
     plugin.clear_pinned()
 
@@ -4849,18 +4849,18 @@ def test_manual_only_scenes_never_auto_match(tmp_path, monkeypatch):
         "    profiles:\n"
         "      - name: office\n"
         "        ifaces: [en5]\n"
-        "        match: {gateway: 10.99.1.254}\n"
+        "        match: {gateway: 10.199.1.254}\n"
         "        routes:\n"
-        "          items: [{destination: 10.99.2.0/24, via: 10.99.1.254}]\n"
+        "          items: [{destination: 10.199.2.0/24, via: 10.199.1.254}]\n"
         "      - name: vpn\n"
         "        ifaces: [en5]\n"
         "        manual_only: true\n"
-        "        match: {gateway: 10.99.1.254}\n"
+        "        match: {gateway: 10.199.1.254}\n"
         "        routes:\n"
-        "          items: [{destination: 10.9.0.0/16, via: 10.99.1.254}]\n"
+        "          items: [{destination: 10.209.0.0/16, via: 10.199.1.254}]\n"
     )
     plugin = _plugin(tmp_path, monkeypatch, body=body)
-    _patched_network(monkeypatch, gateways={"10.99.1.254"})      # 两张网卡都「命中」
+    _patched_network(monkeypatch, gateways={"10.199.1.254"})      # 两张网卡都「命中」
     plugin.sync_routes()
 
     by_name = {r["name"]: r for r in _intent(plugin)["rules"]}
@@ -4869,7 +4869,7 @@ def test_manual_only_scenes_never_auto_match(tmp_path, monkeypatch):
     assert by_name["vpn"]["trigger_matched"] is False, "它根本不参与匹配，别报成命中"
 
     # 摘要如实标出「仅手动」（用户凭它知道这一类只能从面板切过去）
-    assert plugin.scene_items()[1].hint == "网关 10.99.1.254 · 仅手动 · 1 条路由"
+    assert plugin.scene_items()[1].hint == "网关 10.199.1.254 · 仅手动 · 1 条路由"
 
     plugin.set_pinned("vpn")
     by_name = {r["name"]: r for r in _intent(plugin)["rules"]}
@@ -5254,7 +5254,7 @@ def _blank_hop_profile(net=None, **overrides) -> dict:
     profile = _profile(destinations=())
     profile["match"] = {}
     profile["routes"] = {"enabled": True,
-                         "items": [{"destination": "10.99.2.0/24"}]}
+                         "items": [{"destination": "10.199.2.0/24"}]}
     if net is None:
         profile.pop("net", None)
     else:
@@ -5296,11 +5296,11 @@ def test_blank_next_hop_compiles_only_for_a_pinned_lease_scene():
     out = rules.build_routes({"profiles": [_blank_hop_profile(_pin_lease_net())]})
     rule = out["rules"][0]
     assert rule["gateway"] == "", "空串是**信息**：它说的是「由 helper 从网卡上取」"
-    assert rule["destinations"] == ["10.99.2.0/24"]
+    assert rule["destinations"] == ["10.199.2.0/24"]
     assert rule["net"] == _pin_lease_net(), "取值的依据（pin）要跟着进意图"
 
     # 跟随系统 / 静态 IP：这一态给不出网关 ⇒ 报错，且文案点场景、点两条出路
-    for net in (None, {"mode": "static", "ip": "10.99.1.10",
+    for net in (None, {"mode": "static", "ip": "10.199.1.10",
                        "mask": "255.255.255.0"}):
         with pytest.raises(rules.RouteConfigError) as exc:
             rules.build_routes({"profiles": [_blank_hop_profile(net)]})
@@ -5310,8 +5310,8 @@ def test_blank_next_hop_compiles_only_for_a_pinned_lease_scene():
 
     # 有的写、有的留空：一个只取得到、一个写死了 ⇒ 无法确定唯一下一跳，不替用户挑
     mixed = _blank_hop_profile(_pin_lease_net())
-    mixed["routes"]["items"].append({"destination": "10.2.0.0/16",
-                                     "via": "10.99.1.254"})
+    mixed["routes"]["items"].append({"destination": "10.202.0.0/16",
+                                     "via": "10.199.1.254"})
     with pytest.raises(rules.RouteConfigError) as exc:
         rules.build_routes({"profiles": [mixed]})
     assert "统一" in str(exc.value), str(exc.value)
@@ -5335,17 +5335,17 @@ def test_blank_next_hop_takes_the_gateway_from_the_nic(net_env):
     _src, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
 
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
     state = _observed_route()
-    assert _levied_gateway() == "10.99.1.254", "网卡的网关要记进那本账"
+    assert _levied_gateway() == "10.199.1.254", "网卡的网关要记进那本账"
     assert _levied()["net"] == _pin_lease_net(), "记的那一格要连它依据的那份配置一起记"
     rule = state["rules"][0]
     assert rule["gateway_src"] == routeops.GATEWAY_SRC_IFACE
-    assert rule["gateway"] == "10.99.1.254"
+    assert rule["gateway"] == "10.199.1.254"
     assert [d["action"] for d in rule["destinations"]] == ["add"]
-    assert table.ops == [("add", "10.99.2.0/24", "10.99.1.254")]
+    assert table.ops == [("add", "10.199.2.0/24", "10.199.1.254")]
 
 
 def test_blank_next_hop_works_when_the_address_is_pinned_too(net_env):
@@ -5359,16 +5359,16 @@ def test_blank_next_hop_works_when_the_address_is_pinned_too(net_env):
     _src, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
     rule = _pin_blank_rule()
-    rule["net"] = {"mode": "dhcp", "pin": {"ip": "10.99.1.21", "mask": "255.255.255.0"}}
+    rule["net"] = {"mode": "dhcp", "pin": {"ip": "10.199.1.21", "mask": "255.255.255.0"}}
 
     routeops.run_cycle(_intent_text([_apply(rule, True)]))
 
     got = _observed_route()["rules"][0]
     assert got["gateway_src"] == routeops.GATEWAY_SRC_IFACE, "这一次租约必须真去读"
-    assert got["gateway"] == "10.99.1.254"
-    assert table.ops == [("add", "10.99.2.0/24", "10.99.1.254")]
+    assert got["gateway"] == "10.199.1.254"
+    assert table.ops == [("add", "10.199.2.0/24", "10.199.1.254")]
 
 
 def test_blank_next_hop_holds_when_there_is_no_gateway_yet(net_env):
@@ -5381,7 +5381,7 @@ def test_blank_next_hop_holds_when_there_is_no_gateway_yet(net_env):
     _src, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")   # 没有 router 这一项
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")   # 没有 router 这一项
 
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
     state = _observed_route()
@@ -5402,9 +5402,9 @@ def test_the_nics_gateway_survives_a_helper_restart(net_env):
     _src, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
-    assert _levied_gateway() == "10.99.1.254"
+    assert _levied_gateway() == "10.199.1.254"
 
     _restart_helper()                 # 内存清空，从快照灌回
     net.packets.clear()               # 网卡已是 Manual：租约这一路读不到了
@@ -5413,9 +5413,9 @@ def test_the_nics_gateway_survives_a_helper_restart(net_env):
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
     state = _observed_route()
     rule = state["rules"][0]
-    assert _levied_gateway() == "10.99.1.254", "重启后账还在"
+    assert _levied_gateway() == "10.199.1.254", "重启后账还在"
     assert rule["gateway_src"] == routeops.GATEWAY_SRC_IFACE
-    assert rule["gateway"] == "10.99.1.254"
+    assert rule["gateway"] == "10.199.1.254"
     assert [d["action"] for d in rule["destinations"]] == ["add"]
 
 
@@ -5428,11 +5428,11 @@ def test_the_baseline_is_the_last_source_when_the_ledger_and_routes_are_gone(net
     """
     tmp_path, table, net = net_env
     _forget_the_books()
-    service = net.define("en5", mode="static", ip="10.99.1.34",
+    service = net.define("en5", mode="static", ip="10.199.1.34",
                          mask="255.255.255.0", gateway="")
     (tmp_path / "sysrun" / "iface_baseline.json").write_text(json.dumps({
-        service: {"iface": "en5", "at": 1, "mode": "dhcp", "ip": "10.99.1.55",
-                  "mask": "255.255.255.0", "gateway": "10.99.1.254"}}),
+        service: {"iface": "en5", "at": 1, "mode": "dhcp", "ip": "10.199.1.55",
+                  "mask": "255.255.255.0", "gateway": "10.199.1.254"}}),
         encoding="utf-8")
     net.packets.clear()                    # Manual：租约这一路读不到
     # 真重启：内存与盘上的账都清掉（快照也删），系统路由表本来就没有这条目标
@@ -5447,12 +5447,12 @@ def test_the_baseline_is_the_last_source_when_the_ledger_and_routes_are_gone(net
 
     rule = _observed_route()["rules"][0]
     assert rule["gateway_src"] == routeops.GATEWAY_SRC_IFACE
-    assert rule["gateway"] == "10.99.1.254", "baseline 是账与旧路由都缺时的最后一份证据"
+    assert rule["gateway"] == "10.199.1.254", "baseline 是账与旧路由都缺时的最后一份证据"
     assert [d["action"] for d in rule["destinations"]] == ["add"]
-    assert table.ops[:1] == [("add", "10.99.2.0/24", "10.99.1.254")]
+    assert table.ops[:1] == [("add", "10.199.2.0/24", "10.199.1.254")]
     # 捡回来的也算「学到了」：当场落盘，下一轮不必再捡（否则每轮都要读一次路由表/基线）
     assert (json.loads((tmp_path / "iface_gateways.json").read_text(encoding="utf-8"))
-            ["ifaces"]["en5"]["gateway"]) == "10.99.1.254"
+            ["ifaces"]["en5"]["gateway"]) == "10.199.1.254"
 
 
 def test_the_ledger_is_its_own_file_so_a_restart_cannot_lose_it(net_env):
@@ -5469,13 +5469,13 @@ def test_the_ledger_is_its_own_file_so_a_restart_cannot_lose_it(net_env):
     tmp_path, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
 
     ledger_file = tmp_path / "iface_gateways.json"
     assert ledger_file.exists(), "学到网关的那一轮就必须落盘（不靠快照、不等下一轮）"
     assert (json.loads(ledger_file.read_text(encoding="utf-8"))
-            ["ifaces"]["en5"]["gateway"]) == "10.99.1.254"
+            ["ifaces"]["en5"]["gateway"]) == "10.199.1.254"
 
     # 真重启：内存全空、快照没了、上一轮叠的路由也没了、网卡已被固化（租约读不到）
     helper_state._OBSERVED.clear()
@@ -5492,9 +5492,9 @@ def test_the_ledger_is_its_own_file_so_a_restart_cannot_lose_it(net_env):
 
     rule = _observed_route()["rules"][0]
     assert rule["gateway_src"] == routeops.GATEWAY_SRC_IFACE
-    assert rule["gateway"] == "10.99.1.254", "账文件是唯一还留着的那份证据"
+    assert rule["gateway"] == "10.199.1.254", "账文件是唯一还留着的那份证据"
     assert [d["action"] for d in rule["destinations"]] == ["add"]
-    assert table.ops[:1] == [("add", "10.99.2.0/24", "10.99.1.254")]
+    assert table.ops[:1] == [("add", "10.199.2.0/24", "10.199.1.254")]
 
 
 def test_the_nics_gateway_is_only_used_by_the_scene_that_recorded_it(net_env):
@@ -5507,10 +5507,10 @@ def test_the_nics_gateway_is_only_used_by_the_scene_that_recorded_it(net_env):
     _src, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
     first = _pin_blank_rule()
     routeops.run_cycle(_intent_text([_apply(first, True)]))
-    assert _levied_gateway() == "10.99.1.254"
+    assert _levied_gateway() == "10.199.1.254"
     table.ops.clear()
 
     # 用户把这份场景的「固化地址」改到**另一个网段** ⇒ 规则的 net 变了，而这一轮网卡
@@ -5518,10 +5518,10 @@ def test_the_nics_gateway_is_only_used_by_the_scene_that_recorded_it(net_env):
     # （改到不同网段是必须的：同网段时系统里那条旧路由仍指向 .254，兜底会把它捡回来 ——
     # 那是**当前事实**，不属于「旧配置的账」，见 ``_gateway_from_routes``。）
     other = _pin_blank_rule()
-    other["net"] = {"mode": "dhcp", "pin": {"ip": "192.168.5.99", "mask": "255.255.255.0"}}
+    other["net"] = {"mode": "dhcp", "pin": {"ip": "192.168.15.99", "mask": "255.255.255.0"}}
     routeops.run_cycle(_intent_text([_apply(other, True)]))
 
-    assert _levied_gateway() == "10.99.1.254", "账本身仍记着旧那份配置的值（只是不认领）"
+    assert _levied_gateway() == "10.199.1.254", "账本身仍记着旧那份配置的值（只是不认领）"
     rule = _observed_route()["rules"][0]
     assert rule["gateway"] == "" and rule["gateway_src"] == routeops.GATEWAY_SRC_NONE, \
         "旧配置记下的网关不许被新配置认领；跨网段的旧路由也不许捡"
@@ -5534,20 +5534,20 @@ def test_routes_machine_says_the_gateway_it_took(tmp_path, monkeypatch):
     plugin = _plugin(tmp_path, monkeypatch)
 
     # 写死的那个（缺 ``gateway_src`` 的旧回显也走这里）：摘要一个字不变
-    plugin._state = _echo([_rule(dests=("10.99.2.0/24",))])
+    plugin._state = _echo([_rule(dests=("10.199.2.0/24",))])
     assert plugin._routes_report().summary == "已叠加 1 条"
 
     # 自己从网卡上取到的：那个值用户没写过 ⇒ 摘要里点出来
-    plugin._state = _echo([{**_rule(), "gateway": "192.168.11.1",
+    plugin._state = _echo([{**_rule(), "gateway": "192.168.110.1",
                             "gateway_src": routeops.GATEWAY_SRC_IFACE}])
     rep = plugin._routes_report()
-    assert (rep.state, rep.summary) == ("applied", "已叠加 1 条（下一跳 192.168.11.1）")
+    assert (rep.state, rep.summary) == ("applied", "已叠加 1 条（下一跳 192.168.110.1）")
 
     # 取不到 ⇒ 那一份路由一个都没动：WARN，且**不算「已叠加」**（停用句里那个数字
     # 说的是「关掉自动化之后仍然生效着的东西」）
     plugin._state = _echo([{**_rule(), "gateway": "",
                             "gateway_src": routeops.GATEWAY_SRC_NONE,
-                            "destinations": [{"destination": "10.99.2.0/24", "ok": True,
+                            "destinations": [{"destination": "10.199.2.0/24", "ok": True,
                                               "action": "hold"}]}])
     rep = plugin._routes_report()
     assert (rep.state, rep.summary) == ("no_gateway", "未取到网关，1 条路由未动")
@@ -5556,7 +5556,7 @@ def test_routes_machine_says_the_gateway_it_took(tmp_path, monkeypatch):
     # 真失败（ERR）比它严重：两样同时出现时报失败，不拿警告盖掉真问题
     plugin._state = _echo([
         {**_rule(), "gateway": "", "gateway_src": routeops.GATEWAY_SRC_NONE,
-         "destinations": [{"destination": "10.99.2.0/24", "ok": True, "action": "hold"}]},
+         "destinations": [{"destination": "10.199.2.0/24", "ok": True, "action": "hold"}]},
         _rule(name="home", dest_ok=False),
     ])
     assert plugin._routes_report().state == "failed"
@@ -5577,7 +5577,7 @@ def test_a_scene_that_is_not_matched_raises_no_warning(tmp_path, monkeypatch):
     plugin._state = _echo([
         {**_rule(applied=False, matched=False),
          "gateway": "", "gateway_src": routeops.GATEWAY_SRC_NONE,
-         "destinations": [{"destination": "10.99.2.0/24", "ok": True, "action": "hold"}]},
+         "destinations": [{"destination": "10.199.2.0/24", "ok": True, "action": "hold"}]},
     ])
     rep = plugin._routes_report()
     assert (rep.state, rep.summary) == ("none", ""), "没命中 ⇒ 只是「未叠加」"
@@ -5588,19 +5588,19 @@ def test_an_unmatched_scene_does_not_hide_a_taken_gateway(tmp_path, monkeypatch)
     """放宽判据的另一半理由（也是用户看得见的那一半）：别把取到的网关挤掉。
 
     一条真叠上了（下一跳是从网卡取的），另一条配了留空可此刻没命中 —— 面板该报的是
-    「已叠加 1 条（下一跳 192.168.11.1）」。按旧判据这里会变成「未取到网关，1 条路由未动」，
+    「已叠加 1 条（下一跳 192.168.110.1）」。按旧判据这里会变成「未取到网关，1 条路由未动」，
     于是**灯在报警、而用户想核对的那个网关反而看不见了**。
     """
     plugin = _plugin(tmp_path, monkeypatch)
     plugin._state = _echo([
-        {**_rule(dests=("10.99.2.0/24",)), "gateway": "192.168.11.1",
+        {**_rule(dests=("10.199.2.0/24",)), "gateway": "192.168.110.1",
          "gateway_src": routeops.GATEWAY_SRC_IFACE},
-        {**_rule(name="office", applied=False, matched=False, dests=("10.2.0.0/16",)),
+        {**_rule(name="office", applied=False, matched=False, dests=("10.202.0.0/16",)),
          "gateway": "", "gateway_src": routeops.GATEWAY_SRC_NONE,
-         "destinations": [{"destination": "10.2.0.0/16", "ok": True, "action": "hold"}]},
+         "destinations": [{"destination": "10.202.0.0/16", "ok": True, "action": "hold"}]},
     ])
     rep = plugin._routes_report()
-    assert (rep.state, rep.summary) == ("applied", "已叠加 1 条（下一跳 192.168.11.1）")
+    assert (rep.state, rep.summary) == ("applied", "已叠加 1 条（下一跳 192.168.110.1）")
     plugin.stop()
 
 
@@ -5612,8 +5612,8 @@ def test_the_warning_counts_only_the_scenes_that_should_have_acted(tmp_path, mon
     判据与 ``n`` 各写一遍自己的筛选就会变成 5（``reports`` 那条注释说的正是这件事）。
     """
     plugin = _plugin(tmp_path, monkeypatch)
-    act = ("10.99.2.0/24", "10.2.0.0/16")
-    idle = ("10.3.0.0/16", "10.4.0.0/16", "10.5.0.0/16")
+    act = ("10.199.2.0/24", "10.202.0.0/16")
+    idle = ("10.203.0.0/16", "10.204.0.0/16", "10.206.0.0/16")
     plugin._state = _echo([
         {**_rule(), "gateway": "", "gateway_src": routeops.GATEWAY_SRC_NONE,
          "destinations": [{"destination": d, "ok": True, "action": "hold"} for d in act]},
@@ -5629,7 +5629,7 @@ def test_the_warning_counts_only_the_scenes_that_should_have_acted(tmp_path, mon
 # ──────────────────────────────────────────────
 # 「恢复 DHCP」那条路（一次性命令）也要记账
 #
-# 真机现场（2026-10-09）：回执说「已恢复 DHCP 并固化：10.99.1.54」，面板却一直报
+# 真机现场（2026-10-09）：回执说「已恢复 DHCP 并固化：10.199.1.54」，面板却一直报
 # 「未取到网关」。根因是**命令与周期是两条路** —— 周期那条（``_converge_iface``）记
 # ``iface_gateway``，命令那条（``ops._apply_op``）不记。偏偏那个值**只有这条路上读得到**：
 # 命令把网卡切成 Manual 之后，``ipconfig getpacket`` 再也读不到租约。
@@ -5643,9 +5643,9 @@ def test_renew_reads_the_gateway_out_of_the_new_lease(net_env, monkeypatch):
     租约里，而这条命令是它**唯一**的来处（网卡一切成 Manual 就读不到了）。
     """
     _src, _table, net = net_env
-    net.define("en5", mode="static", ip="10.99.1.10", mask="255.255.255.0")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
-    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.99.1.21"])
+    net.define("en5", mode="static", ip="10.199.1.10", mask="255.255.255.0")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
+    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.199.1.21"])
 
     out = routeops._apply_op(
         {"iface": "en5", "op": "renew", "dns": False, "net": _pin_lease_net()},
@@ -5653,7 +5653,7 @@ def test_renew_reads_the_gateway_out_of_the_new_lease(net_env, monkeypatch):
 
     assert out["action"] == "applied" and out["result"] == "pinned"
     assert out["wrote"]["gateway"] == "", "只固化地址：写下去的那份里确实没有网关"
-    assert out["iface_gateway"] == "10.99.1.254", \
+    assert out["iface_gateway"] == "10.199.1.254", \
         "租约里的网关要带出去（它是留空下一跳唯一可能的来处）"
 
 
@@ -5666,20 +5666,20 @@ def test_renew_hands_the_gateway_to_the_ledger(net_env, monkeypatch):
     _src, table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0")      # 这一轮还没有网关
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0")      # 这一轮还没有网关
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
     assert _levied_gateway() == "", "起点：账还是空的（周期那条路读不到网关）"
 
     # 用户按下「恢复 DHCP」：网卡短暂回到 DHCP，等来一份**带网关**的新租约
-    net.packet("en5", ip="10.99.1.54", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.54", mask="255.255.255.0", gateway="10.199.1.254")
     # ``_wait_lease`` 有两条判据，缺一不可：报文里有 yiaddr **且**那个地址确实在网卡的
     # IPv4 列表里（新鲜度 —— 刚 setdhcp 完，报文可能还是上一份缓存的）。假桩里后者由这
     # 条 patch 提供；真机上它是 ``ifconfig`` 说的。
-    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.99.1.54"])
+    monkeypatch.setattr(routeops_routes, "current_ipv4", lambda iface: ["10.199.1.54"])
     routeops.run_net_op("renew", {"iface": "en5", "op": "renew", "dns": False,
                                   "net": _pin_lease_net()})
 
-    assert _levied_gateway() == "10.99.1.254", "这条路上读到的网关也要记进那本账"
+    assert _levied_gateway() == "10.199.1.254", "这条路上读到的网关也要记进那本账"
     assert _levied()["net"] == _pin_lease_net(), "连它依据的那份配置一起记"
 
     # 下一轮：账里有了 ⇒ 留空的那几行当轮就叠上
@@ -5687,8 +5687,8 @@ def test_renew_hands_the_gateway_to_the_ledger(net_env, monkeypatch):
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
     got = _observed_route()["rules"][0]
     assert got["gateway_src"] == routeops.GATEWAY_SRC_IFACE
-    assert got["gateway"] == "10.99.1.254"
-    assert table.ops == [("add", "10.99.2.0/24", "10.99.1.254")], \
+    assert got["gateway"] == "10.199.1.254"
+    assert table.ops == [("add", "10.199.2.0/24", "10.199.1.254")], \
         "账里有了就不该再是 hold"
 
 
@@ -5701,9 +5701,9 @@ def test_a_failed_renew_keeps_the_gateway_we_already_knew(net_env, monkeypatch):
     _src, _table, net = net_env
     _forget_the_books()
     net.define("en5", mode="dhcp")
-    net.packet("en5", ip="10.99.1.21", mask="255.255.255.0", gateway="10.99.1.254")
+    net.packet("en5", ip="10.199.1.21", mask="255.255.255.0", gateway="10.199.1.254")
     routeops.run_cycle(_intent_text([_apply(_pin_blank_rule(), True)]))
-    assert _levied_gateway() == "10.99.1.254"
+    assert _levied_gateway() == "10.199.1.254"
 
     # 这一次等不到新租约：网卡交还了 DHCP，但没发下来
     net.packets.clear()
@@ -5714,4 +5714,4 @@ def test_a_failed_renew_keeps_the_gateway_we_already_knew(net_env, monkeypatch):
                                         "net": _pin_lease_net()})
 
     assert out["action"] == "failed", "这一步本来就没成"
-    assert _levied_gateway() == "10.99.1.254", "失败不许把已经知道的抹掉"
+    assert _levied_gateway() == "10.199.1.254", "失败不许把已经知道的抹掉"

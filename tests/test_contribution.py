@@ -303,9 +303,9 @@ def test_versions_declared():
 def test_menu_item_carries_hint():
     """菜单项必须带得起**副文案**：只给名字的菜单等于没有信息（契约 §2.6 / D25）。"""
     clicked: list[int] = []
-    item = MenuItem("office", lambda: clicked.append(1), hint="192.168.11.0/24 · 3 条路由")
+    item = MenuItem("office", lambda: clicked.append(1), hint="192.168.110.0/24 · 3 条路由")
     assert item.label == "office"
-    assert item.hint == "192.168.11.0/24 · 3 条路由"
+    assert item.hint == "192.168.110.0/24 · 3 条路由"
     item.on_click()
     assert clicked == [1]
 
@@ -330,14 +330,14 @@ def test_menu_spec_static_and_runtime_reads():
 
     def _items() -> tuple[MenuItem, ...]:
         calls.append("items")
-        return (MenuItem("home", lambda: None, hint="192.168.2.0/24 · 1 条路由"),)
+        return (MenuItem("home", lambda: None, hint="192.168.21.0/24 · 1 条路由"),)
 
     def _current() -> str:
         calls.append("current")
         return "home"
 
     runtime = MenuSpec(items=(), get_items=_items, get_current=_current)
-    assert runtime.get_items()[0].hint == "192.168.2.0/24 · 1 条路由"
+    assert runtime.get_items()[0].hint == "192.168.21.0/24 · 1 条路由"
     assert runtime.get_current() == "home"
     assert calls == ["items", "current"]          # 纯读取：不缓存、不产生副作用
 
@@ -417,7 +417,7 @@ def test_mode_badge_spec_candidate_list_replaces_on_click():
             MenuItem("自动", lambda: picks.append("自动"), hint="按网段匹配"),
             MenuItem(
                 "office", lambda: picks.append("office"),
-                hint="192.168.11.0/24 · 3 条路由",
+                hint="192.168.110.0/24 · 3 条路由",
             ),
         ),
     )
@@ -425,7 +425,7 @@ def test_mode_badge_spec_candidate_list_replaces_on_click():
     items = badge.get_items()
     assert [i.label for i in items] == ["自动", "office"]
     assert badge.label in {i.label for i in items}   # 当前项按 label 匹配，须落在列表里
-    assert items[1].hint == "192.168.11.0/24 · 3 条路由"   # 摘要不放松（设计 §4.5 硬要求 1）
+    assert items[1].hint == "192.168.110.0/24 · 3 条路由"   # 摘要不放松（设计 §4.5 硬要求 1）
     items[1].on_click()
     assert picks == ["office"]
     assert badge.on_click is None                    # 有列表时点击 = 展开，不直达动作

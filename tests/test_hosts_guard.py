@@ -149,7 +149,7 @@ def test_normalize_rules_rejects_bad_and_dedup():
 
 HOSTS_SAMPLE = "\n".join([
     "127.0.0.1 localhost broadcasthost",   # 系统保留
-    "192.168.11.63 homeassistant.local",   # 外部条目
+    "192.168.110.63 homeassistant.local",   # 外部条目
     "",                                    # 空行
     "# 普通注释",                           # 注释
     "10.0.0.5 a.local # 行内注释",          # 行内注释条目

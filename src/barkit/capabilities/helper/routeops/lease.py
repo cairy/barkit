@@ -22,7 +22,7 @@ from . import netmode, routes
 def _packet_value(line: str) -> str:
     """``ipconfig getpacket`` 一行 → 值。
 
-    顶层字段用 ``=``（``yiaddr = 10.99.1.21``），options 段用 ``:``
+    顶层字段用 ``=``（``yiaddr = 10.199.1.21``），options 段用 ``:``
     （``subnet_mask (ip): 255.255.255.0``），故取**先出现的那个分隔符**。
     """
     for i, ch in enumerate(line):

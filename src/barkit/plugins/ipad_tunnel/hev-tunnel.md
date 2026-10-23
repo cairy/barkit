@@ -181,7 +181,7 @@ DNS 有没有被劫持。判据是**系统 resolver 列表 + 真实查询是否�
 | 场景 | `scutil --dns` resolver #1 | `dig +short example.com`（走系统 resolver） | `route -n get 198.18.0.2` | 结论 |
 | --- | --- | --- | --- | --- |
 | 劫持（`hijack_dns=true`） | `198.18.0.2` | `100.64.x.x`（fake IP） | `utunN` | DNS 经 iPad 隧道解析 ✅ |
-| 未劫持（`hijack_dns=false`） | 真实 DNS（如 `10.55.55.254`） | 真实公网 IP | `utunN`（主机路由仍在，仅作探针） | DNS 走本机直连 ✅ |
+| 未劫持（`hijack_dns=false`） | 真实 DNS（如 `10.205.55.254`） | 真实公网 IP | `utunN`（主机路由仍在，仅作探针） | DNS 走本机直连 ✅ |
 | 半断网（`route=on, dns=off`） | 真实 DNS | 真实 IP，但连接被 iPad 拒裸 IP | `utunN` | 危险错配 ⚠️ |
 
 **逐条判据命令**：

@@ -3294,7 +3294,7 @@ def test_diagnostics_bypass():
     state = {"active": False, "utun": None,
              "dns_set": False, "ipad_reachable": False}
     tunnel = {"hijack_route": False, "hijack_dns": False}
-    runner = FakeDiagRunner(route_iface="en0", nameserver="10.55.55.254",
+    runner = FakeDiagRunner(route_iface="en0", nameserver="10.205.55.254",
                             dig_system="93.184.216.34", dig_tunnel="",
                             curl_egress="198.51.100.7", socks_rc=7,
                             socks_out="curl: (7) failed to connect",
@@ -3315,7 +3315,7 @@ def test_diagnostics_config_mismatch():
     state = {"active": False, "utun": None,
              "dns_set": False, "ipad_reachable": True}
     tunnel = {"hijack_route": True, "hijack_dns": True}
-    runner = FakeDiagRunner(route_iface="en0", nameserver="10.55.55.254",
+    runner = FakeDiagRunner(route_iface="en0", nameserver="10.205.55.254",
                             dig_system="93.184.216.34", dig_tunnel="",
                             curl_egress="198.51.100.7", socks_rc=0,
                             socks_out="http=200 t=0.1", ifconfig_out="")

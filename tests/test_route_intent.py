@@ -25,11 +25,11 @@ from barkit.plugins.route_guard import rules
 OFFICE_PROFILE = {
     "name": "office",
     "ifaces": ["en5"],
-    "match": {"gateway": "10.99.1.254"},
+    "match": {"gateway": "10.199.1.254"},
     "net": {"mode": "dhcp"},
     "routes": {
         "enabled": True,
-        "items": [{"destination": "10.99.2.0/24", "via": "10.99.1.254"}],
+        "items": [{"destination": "10.199.2.0/24", "via": "10.199.1.254"}],
     },
 }
 
@@ -37,8 +37,8 @@ OFFICE = {
     "name": "office",
     "priority": 1,
     "iface": "en5",
-    "gateway": "10.99.1.254",
-    "destinations": ["10.99.2.0/24"],
+    "gateway": "10.199.1.254",
+    "destinations": ["10.199.2.0/24"],
 }
 
 
@@ -109,7 +109,7 @@ def test_build_intent_marks_apply_and_trigger():
     out = intent_mod.build_intent(_routes([OFFICE]), None, probe=lambda *_a: True)
     rule = out["rules"][0]
     assert rule["apply"] is True and rule["trigger_matched"] is True
-    assert rule["gateway"] == "10.99.1.254" and rule["destinations"] == ["10.99.2.0/24"]
+    assert rule["gateway"] == "10.199.1.254" and rule["destinations"] == ["10.199.2.0/24"]
 
     out2 = intent_mod.build_intent(_routes([OFFICE]), None, probe=lambda *_a: False)
     assert out2["rules"][0]["apply"] is False
@@ -160,18 +160,18 @@ def test_build_intent_passes_off_destinations_only_when_applying():
     compiled = rules.build_routes({"helper_poll": 30, "profiles": [{
         **OFFICE_PROFILE,
         "routes": {"enabled": True, "items": [
-            {"destination": "10.99.2.0/24", "via": "10.99.1.254"},
-            {"destination": "10.2.0.0/16", "via": "10.99.1.254", "enabled": False},
+            {"destination": "10.199.2.0/24", "via": "10.199.1.254"},
+            {"destination": "10.202.0.0/16", "via": "10.199.1.254", "enabled": False},
         ]},
     }]})
-    assert compiled["rules"][0]["off_destinations"] == ["10.2.0.0/16"], \
+    assert compiled["rules"][0]["off_destinations"] == ["10.202.0.0/16"], \
         "编译层就带上（它不过探活，那一步在意图层）"
 
     hit = intent_mod.build_intent(compiled, None, probe=lambda *_a: True)
     rule = hit["rules"][0]
     assert rule["apply"] is True
-    assert rule["destinations"] == ["10.99.2.0/24", "10.2.0.0/16"]
-    assert rule["off_destinations"] == ["10.2.0.0/16"]
+    assert rule["destinations"] == ["10.199.2.0/24", "10.202.0.0/16"]
+    assert rule["off_destinations"] == ["10.202.0.0/16"]
     assert routeops.validate_intent(hit)[1] is None, "helper 侧收得下这一份"
 
     miss = intent_mod.build_intent(compiled, None, probe=lambda *_a: False)["rules"][0]
@@ -296,28 +296,28 @@ def test_network_probe_uses_helper_queries(monkeypatch):
     ⚠️ 桩要打在 ``intent`` 命名空间的那些名字上，不能打 ``routeops`` 里同名的函数：
     ``intent`` 是 ``from ... import iface_up`` 的**按值导入**（模块 docstring 里写明
     「复用 helper 侧实现，避免两侧语义漂移」），改 ``routeops.iface_up`` 根本影响不到它。
-    原先那条用例打错了地方，于是它只在「开发机真有一块 en5、网关恰好是 10.99.1.254」
+    原先那条用例打错了地方，于是它只在「开发机真有一块 en5、网关恰好是 10.199.1.254」
     时通过 —— 换句话说它测的是开发机的网络，不是这段代码（2026-09-17 随第 7b 步订正）。
     """
     monkeypatch.setattr(intent_mod, "iface_up", lambda iface: iface == "en5")
-    monkeypatch.setattr(intent_mod, "current_gateways", lambda iface: ["10.99.1.254"])
+    monkeypatch.setattr(intent_mod, "current_gateways", lambda iface: ["10.199.1.254"])
     monkeypatch.setattr(intent_mod, "current_ipv4",
-                        lambda iface: ["192.168.11.5", "169.254.1.2"])
+                        lambda iface: ["192.168.110.5", "169.254.1.2"])
 
     # 只写 gateway（兼容旧配置那条路）
-    assert intent_mod.network_probe("en5", "", "10.99.1.254") is True
-    assert intent_mod.network_probe("en5", "", "192.168.2.1") is False    # 网关不在
-    assert intent_mod.network_probe("en9", "", "10.99.1.254") is False   # 接口不在线
+    assert intent_mod.network_probe("en5", "", "10.199.1.254") is True
+    assert intent_mod.network_probe("en5", "", "192.168.21.1") is False    # 网关不在
+    assert intent_mod.network_probe("en9", "", "10.199.1.254") is False   # 接口不在线
 
     # 只写 subnet（本设计的**主路径**）
-    assert intent_mod.network_probe("en5", "192.168.11.0/24", "") is True
-    assert intent_mod.network_probe("en5", "192.168.2.0/24", "") is False  # 卡上没这网段的地址
-    assert intent_mod.network_probe("en9", "192.168.11.0/24", "") is False
+    assert intent_mod.network_probe("en5", "192.168.110.0/24", "") is True
+    assert intent_mod.network_probe("en5", "192.168.21.0/24", "") is False  # 卡上没这网段的地址
+    assert intent_mod.network_probe("en9", "192.168.110.0/24", "") is False
 
     # 两个都写 = **AND**（不是「任一」）
-    assert intent_mod.network_probe("en5", "192.168.11.0/24", "10.99.1.254") is True
-    assert intent_mod.network_probe("en5", "192.168.11.0/24", "192.168.2.1") is False
-    assert intent_mod.network_probe("en5", "192.168.2.0/24", "10.99.1.254") is False
+    assert intent_mod.network_probe("en5", "192.168.110.0/24", "10.199.1.254") is True
+    assert intent_mod.network_probe("en5", "192.168.110.0/24", "192.168.21.1") is False
+    assert intent_mod.network_probe("en5", "192.168.21.0/24", "10.199.1.254") is False
 
     # 都不写 = 网卡在线即命中（§2.1 允许空 match）。改动前这里恒 False —— 那是
     # 「没人接上 subnet 这条腿」留下的口径，与 validate_match 的文档正好相反。
@@ -333,12 +333,12 @@ def test_subnet_hit_is_fail_closed_on_bad_input(monkeypatch):
     笔误升级成「路由停更」。
     """
     monkeypatch.setattr(intent_mod, "iface_up", lambda iface: True)
-    monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["192.168.11.5"])
+    monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["192.168.110.5"])
     assert intent_mod.network_probe("en5", "不是网段", "") is False
-    assert intent_mod.network_probe("en5", "192.168.11.0/33", "") is False
+    assert intent_mod.network_probe("en5", "192.168.110.0/33", "") is False
     # 网卡上的地址解析不了也不该炸（ifconfig 抓到脏数据时的兜底）
     monkeypatch.setattr(intent_mod, "current_ipv4", lambda iface: ["坏地址"])
-    assert intent_mod.network_probe("en5", "192.168.11.0/24", "") is False
+    assert intent_mod.network_probe("en5", "192.168.110.0/24", "") is False
 
 
 def test_helper_no_longer_decides(monkeypatch):
@@ -530,12 +530,12 @@ PINNED_OFFICE = {
     "name": "office",
     "iface": "en5",
     "gateway": "",
-    "destinations": ["10.99.2.0/24"],
-    "net": {"mode": "dhcp", "pin": {"ip": "10.99.1.21", "mask": "255.255.255.0"}},
+    "destinations": ["10.199.2.0/24"],
+    "net": {"mode": "dhcp", "pin": {"ip": "10.199.1.21", "mask": "255.255.255.0"}},
 }
 
 #: 我们上次写下去的那一份（守护回显 ``net.wrote``）
-WROTE = {"mode": "dhcp+pin", "ip": "10.99.1.21", "mask": "255.255.255.0",
+WROTE = {"mode": "dhcp+pin", "ip": "10.199.1.21", "mask": "255.255.255.0",
          "gateway": "", "dns": []}
 
 
@@ -559,7 +559,7 @@ def _continued(rule=None, prior_net=None, current=None, **kw):
 
 def test_a_pinned_scene_keeps_matching_while_its_own_config_is_still_on_the_nic():
     """网卡还停在我们按这份 net 写下去的样子 ⇒ 续上命中（探不中也算命中）。"""
-    rule = _continued(current={"mode": "static", "ip": "10.99.1.21",
+    rule = _continued(current={"mode": "static", "ip": "10.199.1.21",
                                "mask": "255.255.255.0", "gateway": "", "dns": []})
     assert rule["trigger_matched"] is True, "固化过的场景不该因为我们自己的写入而失效"
     assert rule["apply"] is True
@@ -568,7 +568,7 @@ def test_a_pinned_scene_keeps_matching_while_its_own_config_is_still_on_the_nic(
 
 def test_a_continuation_ends_when_the_user_puts_the_nic_back_on_dhcp():
     """用户把网卡改回 DHCP ⇒ 立刻不续（「还是固定 IP 模式」这条不成立）。"""
-    rule = _continued(current={"mode": "dhcp", "ip": "10.99.1.21",
+    rule = _continued(current={"mode": "dhcp", "ip": "10.199.1.21",
                                "mask": "255.255.255.0", "gateway": "", "dns": []})
     assert rule["trigger_matched"] is False
     assert rule["apply"] is False, "不是我们固化的样子了，就不能再声称在这个网络里"
@@ -576,7 +576,7 @@ def test_a_continuation_ends_when_the_user_puts_the_nic_back_on_dhcp():
 
 def test_a_continuation_ends_when_a_declared_field_drifts():
     """配置声明了 ip / mask ⇒ 它俩任何一位变了就断。"""
-    rule = _continued(current={"mode": "static", "ip": "10.99.1.99",
+    rule = _continued(current={"mode": "static", "ip": "10.199.1.99",
                                "mask": "255.255.255.0", "gateway": "", "dns": []})
     assert rule["trigger_matched"] is False
 
@@ -588,8 +588,8 @@ def test_an_undeclared_field_never_ends_a_continuation():
     地址，就只核「还是固定模式 ＋ 地址没变」；用户之后加了个网关、换了个 DNS，
     与「我在不在办公室」无关。
     """
-    rule = _continued(current={"mode": "static", "ip": "10.99.1.21",
-                               "mask": "255.255.255.0", "gateway": "10.99.1.254",
+    rule = _continued(current={"mode": "static", "ip": "10.199.1.21",
+                               "mask": "255.255.255.0", "gateway": "10.199.1.254",
                                "dns": ["8.8.8.8"]})
     assert rule["trigger_matched"] is True
 
@@ -597,13 +597,13 @@ def test_an_undeclared_field_never_ends_a_continuation():
 def test_a_blank_pin_compares_against_what_we_last_wrote():
     """``pin`` 留空 = 「用 DHCP 拿到的那个」⇒ 跟**我们上次写下的**比（没有第二个真源）。"""
     rule = {"name": "office", "iface": "en5", "gateway": "",
-            "destinations": ["10.99.2.0/24"],
+            "destinations": ["10.199.2.0/24"],
             "net": {"mode": "dhcp", "pin": {"ip": "", "mask": ""}}}
-    same = _continued(rule=rule, current={"mode": "static", "ip": "10.99.1.21",
+    same = _continued(rule=rule, current={"mode": "static", "ip": "10.199.1.21",
                                           "mask": "255.255.255.0"})
     assert same["trigger_matched"] is True
 
-    other = _continued(rule=rule, current={"mode": "static", "ip": "10.9.0.7",
+    other = _continued(rule=rule, current={"mode": "static", "ip": "10.209.0.7",
                                            "mask": "255.255.255.0"})
     assert other["trigger_matched"] is False, "地址变了就不再是我们固化的那一份"
 
@@ -611,14 +611,14 @@ def test_a_blank_pin_compares_against_what_we_last_wrote():
 def test_a_scene_that_writes_no_net_never_continues():
     """不写网卡的场景没有「我们留下的样子」可核 ⇒ 不许续（否则永不退出，就是自证循环）。"""
     rule = _continued(rule={**PINNED_OFFICE, "net": {"mode": "dhcp"}},
-                      current={"mode": "static", "ip": "10.99.1.21",
+                      current={"mode": "static", "ip": "10.199.1.21",
                                "mask": "255.255.255.0"})
     assert rule["trigger_matched"] is False
 
 
 def test_continuation_is_off_while_paused_pinned_or_manual_only():
     """停用 / 手动指定 / ``manual_only`` 三条路都不许被续期偷偷拉回来。"""
-    current = {"mode": "static", "ip": "10.99.1.21", "mask": "255.255.255.0"}
+    current = {"mode": "static", "ip": "10.199.1.21", "mask": "255.255.255.0"}
     prior_rules, prior_net = _applied_once()
 
     paused = intent_mod.build_intent(
@@ -648,9 +648,9 @@ def test_a_static_config_never_continues():
     让一份本该靠现场判断的配置永远自证成立。
     """
     rule = {"name": "office", "iface": "en5", "gateway": "",
-            "destinations": ["10.99.2.0/24"],
-            "net": {"mode": "static", "ip": "10.99.1.21", "mask": "255.255.255.0"}}
-    got = _continued(rule=rule, current={"mode": "static", "ip": "10.99.1.21",
+            "destinations": ["10.199.2.0/24"],
+            "net": {"mode": "static", "ip": "10.199.1.21", "mask": "255.255.255.0"}}
+    got = _continued(rule=rule, current={"mode": "static", "ip": "10.199.1.21",
                                          "mask": "255.255.255.0"})
     assert got["trigger_matched"] is False
 
@@ -658,8 +658,8 @@ def test_a_static_config_never_continues():
 def test_a_continuation_needs_the_last_round_to_have_been_dhcp_pinned():
     """上一轮写的不是 ``dhcp+pin``（或没有这份回显）⇒ 不算「上次是 DHCP 固化」。"""
     prior_rules, _ = _applied_once()
-    current = {"mode": "static", "ip": "10.99.1.21", "mask": "255.255.255.0"}
-    for wrote in ({"mode": "static", "ip": "10.99.1.21", "mask": "255.255.255.0"}, {}):
+    current = {"mode": "static", "ip": "10.199.1.21", "mask": "255.255.255.0"}
+    for wrote in ({"mode": "static", "ip": "10.199.1.21", "mask": "255.255.255.0"}, {}):
         got = intent_mod.build_intent(
             _routes([PINNED_OFFICE]), None, probe=lambda *_a: False,
             prior_rules=prior_rules,

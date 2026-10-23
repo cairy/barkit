@@ -158,7 +158,7 @@ class _SceneNetMixin:
                 "离开这个场景后是否还原，由设置页的「无匹配时」决定。"
             )
         elif mode == _NET_FORM_STATIC:
-            self._net_ip.setPlaceholderText("如 192.168.2.88")
+            self._net_ip.setPlaceholderText("如 192.168.21.88")
             self._net_mask.setPlaceholderText("如 255.255.255.0")
             self._net_gw.setPlaceholderText("留空 = 不指定网关")
             self._net_dns.setPlaceholderText("留空 = 不改 DNS（逗号分隔）")

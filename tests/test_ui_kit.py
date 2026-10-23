@@ -476,8 +476,8 @@ def test_edit_stack_swaps_screens(qtbot):
 def test_candidate_menu_picks_by_index(qtbot):
     """候选菜单：``pick`` 返回那一项并 emit；``MenuItem`` 是冻结值对象（不塞闭包）。"""
     picked: list[MenuItem] = []
-    items = (MenuItem("office", lambda: None, "10.99.1.0/24"),
-             MenuItem("home", lambda: None, "192.168.11.0/24"))
+    items = (MenuItem("office", lambda: None, "10.199.1.0/24"),
+             MenuItem("home", lambda: None, "192.168.110.0/24"))
     menu = ui_kit.CandidateMenu(items, current="office", on_picked=picked.append)
     qtbot.addWidget(menu)
     assert menu.pick(1) is items[1]

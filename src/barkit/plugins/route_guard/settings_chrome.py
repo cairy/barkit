@@ -78,7 +78,7 @@ class _SceneChromeMixin:
         # （第一命中制）。典型场合是扩展坞与直插转换器在系统里拿到的名字不同。
         self._iface.setPlaceholderText("如 en5（多张：en5, en6）")
         self._gw = QLineEdit(self)
-        self._gw.setPlaceholderText("如 10.99.1.254")
+        self._gw.setPlaceholderText("如 10.199.1.254")
         self._iface.editingFinished.connect(self._collect_fields)
         self._gw.editingFinished.connect(self._collect_fields)
         cond.addWidget(self._iface)
@@ -88,7 +88,7 @@ class _SceneChromeMixin:
         # 生效网段（§2.1 的命中主路径）：判定是「网卡上有一枚地址落在它里面」，实装见
         # `intent.network_probe`（与网关是 **AND**，都写才两个都要满足）。
         self._subnet = QLineEdit(self)
-        self._subnet.setPlaceholderText("如 192.168.11.0/24")
+        self._subnet.setPlaceholderText("如 192.168.110.0/24")
         self._subnet.editingFinished.connect(self._collect_fields)
         right.addWidget(form_row_stacked(
             "生效网段（网卡上有一枚地址落在它里面 = 命中；可留空）", self._subnet, self,
