@@ -30,13 +30,11 @@ jobs:
       - name: 安装依赖
         run: uv sync --locked --group dev
 
-      - name: 安装 PyInstaller
-        run: uv pip install pyinstaller
-
       - name: 构建 .app
         run: |
           uname -m
-          uv run pyinstaller --noconfirm packaging/BarKit.spec --distpath dist --workpath build
+          # 用 --with 叠加 PyInstaller：避免 `uv run` 按锁文件同步时把它当多余包移除。
+          uv run --with pyinstaller pyinstaller --noconfirm packaging/BarKit.spec --distpath dist --workpath build
 
       - name: 打包 .dmg
         run: |
