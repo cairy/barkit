@@ -1,0 +1,57 @@
+name: Release
+
+# 打 tag（v*）时自动：构建 macOS .app → 打 .dmg → 上传到 GitHub Release。
+# 也可手动 workflow_dispatch 触发（只构建，不上传，便于先验证能否打包）。
+#
+# 当前为**未签名**版本：产物能构建，但用户首次打开会被 Gatekeeper 拦截。
+# 日后拿到 Apple Developer 账号，再加「codesign + notarytool + staple」两步即可。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write            # 上传 Release 资产需要
+
+jobs:
+  build-macos:
+    # BarKit 依赖 pyobjc + PySide6，只能在 macOS 上构建。
+    # macos-latest = Apple Silicon(arm64)，与随包的 arm64 hev 二进制一致。
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: 安装依赖
+        run: uv sync --locked --group dev
+
+      - name: 安装 PyInstaller
+        run: uv pip install pyinstaller
+
+      - name: 构建 .app
+        run: |
+          uname -m
+          uv run pyinstaller --noconfirm packaging/BarKit.spec --distpath dist --workpath build
+
+      - name: 打包 .dmg
+        run: |
+          set -euo pipefail
+          APP="dist/BarKit.app"
+          DMG="dist/BarKit-${{ github.ref_name }}-${{ runner.arch }}.dmg"
+          STAGE="$(mktemp -d)"
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"   # 拖拽安装到「应用程序」
+          hdiutil create -volname "BarKit" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
+
+      - name: 上传到 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.DMG }}
+          generate_release_notes: true

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 
@@ -18,7 +19,15 @@ log = logging.getLogger("barkit.core.config")
 # 深度 4 而不是 3：拆包前本行住在 ``core/config.py``（深 3 ⇒ 仓库根），
 # 现在住在 ``core/config/consts.py``（深 3 ⇒ ``src/``）—— 逐字节搬移会指到
 # 一个不存在的文件，而症状是四条用例 ``FileNotFoundError``，不是静默。
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[4] / "config.default.yaml"
+# 打包态（PyInstaller）下 ``__file__`` 位于 bundle 内，仓库相对布局失效：
+# 改用 ``sys._MEIPASS`` 定位随包附带的 config.default.yaml（spec 放到包根）。
+if getattr(sys, "frozen", False):
+    DEFAULT_CONFIG_PATH = (
+        Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+        / "config.default.yaml"
+    )
+else:
+    DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[4] / "config.default.yaml"
 # 用户配置 = ``paths.APP_SUPPORT / "config.yaml"``。**刻意不做成模块级常量**：
 # 那会诱导别人把它当默认参数用，而默认参数在**函数定义期**求值 → 测试的
 # 模块属性补丁（monkeypatch.setattr(paths, "APP_SUPPORT", tmp)）对它无效。
