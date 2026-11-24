@@ -12,11 +12,16 @@
   并配合 ``core/config/consts.py`` 的 frozen 分支定位。
 """
 import os
+import tomllib
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 # 仓库根（本 spec 位于 <root>/packaging/）
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+
+# 版本号以 pyproject.toml 为唯一真源，写进 Info.plist 供「关于本机」等处展示。
+with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
+    VERSION = tomllib.load(f)["project"]["version"]
 
 datas = collect_data_files("barkit")
 datas += [(os.path.join(ROOT, "config.default.yaml"), ".")]
@@ -78,11 +83,13 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="BarKit.app",
-    icon=None,
+    icon=os.path.join(ROOT, "packaging", "BarKit.icns"),
     bundle_identifier="com.cairy.barkit",
     info_plist={
         "LSUIElement": True,          # 菜单栏 App：不出现在 Dock / Cmd-Tab
         "NSHighResolutionCapable": True,
         "LSMinimumSystemVersion": "12.0",
+        "CFBundleShortVersionString": VERSION,
+        "CFBundleVersion": VERSION,
     },
 )
