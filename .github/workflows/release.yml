@@ -58,6 +58,17 @@ jobs:
           # 清掉可能妨碍签名的扩展属性
           xattr -cr "$APP"
 
+          # PyInstaller 对带点的嵌套 .app（bt_guard 的 BTHelper.app）做「目录改名 +
+          # 双向交叉链接」，会形成符号链接环，codesign 连外层签名都会 ELOOP。
+          # 用仓库里的原始 .app 覆盖成真实目录（内容未改，签名稍后统一重做）。
+          DST="$APP/Contents/Frameworks/barkit/plugins/bt_guard/resources"
+          SRC="src/barkit/plugins/bt_guard/resources/BTHelper.app"
+          if [[ -d "$DST" && -d "$SRC" ]]; then
+            rm -rf "$DST/BTHelper.app" "$DST/BTHelper__dot__app"
+            cp -R "$SRC" "$DST/BTHelper.app"
+            log "已用原始 BTHelper.app 替换交叉链接目录"
+          fi
+
           fail=0
           # codesign 的报错同时转成 ::error:: 注解：Actions 页面可见，
           # 也无需仓库管理员权限就能通过 check-run annotations API 读到原文。
@@ -73,19 +84,20 @@ jobs:
           }
 
           # 由内向外逐个签 Mach-O（.so / .dylib / 可执行文件），最后签 .app 本身。
-          # 嵌套 .app（插件资源里的 helper）被 PyInstaller 改名成 `X__dot__app` 并留了
-          # 符号链接，按带链接的路径签名会 ELOOP；先 realpath 成真实文件再签。
+          # 嵌套 .app 的内部文件不在这里签：整包签会重做它的封存，逐个签反而会破坏 seal。
           while IFS= read -r -d '' f; do
             case "$f" in
-              *.app/Contents/*)
-                f="$(realpath "$f" 2>/dev/null)" \
-                  || { log "::warning::跳过无法解析的嵌套组件"; continue; }
-                ;;
+              *.app/Contents/*) continue ;;
             esac
             if file -b "$f" | grep -q 'Mach-O'; then
               sign_one "$f"
             fi
           done < <(find "$APP/Contents" -type f ! -path '*/_CodeSignature/*' -print0)
+
+          # 嵌套 .app 作为 bundle 整体签（内部可执行文件与资源由 codesign 一次处理）
+          while IFS= read -r -d '' nested; do
+            sign_one "$nested"
+          done < <(find "$APP/Contents/Frameworks" -type d -name '*.app' -print0)
 
           # .framework 是 bundle，内部文件签完后再整包签一次
           for fw in "$APP"/Contents/Frameworks/*.framework; do
