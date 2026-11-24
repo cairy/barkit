@@ -1,8 +1,8 @@
 """autotype：一键输入（方案 §4.4，P2a）。
 
 - run_mode = on_demand：按需触发，无常驻轮询
-- 触发：热键 ⌃⌥P（autotype_last：输入“上次使用的项”，首次弹列表选择）
-        + 托盘子菜单直选 + 面板按钮
+- 触发：热键 ⌃⌥P ＋ 面板快捷按钮 ＋ 面板整行点击，三者都输入**面板下拉当前
+        显示的那一项**（判定见 ``_target_name``）
 - 流程：辅助功能权限检查 → TIS 输入法检测/切 ABC → 倒计时浮层（可取消）→ 逐字符注入
 - 引擎（CGEvent 直注 + TIS）见 engine.py，均为库模块，无 Qt 依赖
 - “上次使用”**只活在内存里**（2026-09-29）：从前它落一份 11 字节的
@@ -98,7 +98,8 @@ class Plugin(Plugin):
     # ---------- 主流程 ----------
 
     def type_profile(self, name: str | None = None) -> "ActionResult | None":
-        """入口编排：权限 → 输入法 → 倒计时浮层 → 注入。``name=None`` 时用上次项。
+        """入口编排：权限 → 输入法 → 倒计时浮层 → 注入。``name=None`` 时问
+        :meth:`_target_name`（全插件唯一的那处判定）。
 
         返回值（2026-09-28 起，`ActionSpec.on_click` / `HotkeySpec.callback` 已扩宽）：
 
@@ -125,21 +126,13 @@ class Plugin(Plugin):
             if not ensure_accessibility():
                 return None
         if name is None:
-            name = self.get_last()
+            name = self._target_name()
         if name is None:
-            # 首次使用：不再弹私有选择框（那是个模态框，而且它的选项就在
-            # 面板那一行的下拉里，同一件事有两个入口只是让用户多一层选择）。
-            # `get_clickable` 保证「一个输入项都没有」时这一行不可点 ⇒ 这条路
-            # 只会从热键 / 托盘进来，故文案要指向面板。
-            if not self._profile_names():
-                return ActionResult(
-                    ActionOutcome.FAILED,
-                    "还没有输入项，请先到设置窗的「一键输入」页添加一条。",
-                )
+            # 只剩这一种可能：一条输入项都没有（判定见 `_target_name`）。
+            # 此时面板那一行 `get_clickable` 为假、下拉为空，故文案只能指向设置页。
             return ActionResult(
                 ActionOutcome.FAILED,
-                "还没有上次用的输入项 —— 请到面板「一键输入」那一行，"
-                "用右侧下拉选一项，再点整行即输入。",
+                "还没有输入项，请先到设置窗的「一键输入」页添加一条。",
             )
         spec = engine.resolve_profile(self.plugin_config(), name)
         if spec is None:
@@ -175,11 +168,10 @@ class Plugin(Plugin):
             self._overlay = None
 
     def type_last(self) -> "ActionResult | None":
-        """⌃⌥P 与面板「一键输入」按钮：输当前选定的那一项。
+        """⌃⌥P 与面板「一键输入」按钮：输下拉当前显示的那一项。
 
         判定走 :meth:`_target_name`（与整行点击**同一处**）—— 此前这里写死 ``None``
-        （只认「上次项」），于是重启后按钮一律失败；没有上次记录时仍**给一句回执**
-        （不再弹列表选择框）。
+        （只认「上次项」），于是重启后按钮一律失败（2026-09-30 那一批）。
         """
         return self.type_profile(self._target_name())
 
@@ -325,25 +317,30 @@ class Plugin(Plugin):
         return bool(self._profile_names())
 
     def _choice_current(self) -> str:
-        """下拉当前项：用户改选过就用改选的，否则回落到「上次使用」。"""
-        return self._choice or self.get_last() or ""
-
-    def _sole_profile(self) -> "str | None":
-        """**只有一项**时那一项的名字（多于一项给 ``None``：那是有歧义，不能替用户猜）。"""
-        names = self._profile_names()
-        return names[0] if len(names) == 1 else None
+        """下拉当前项 —— **就是** :meth:`_target_name` 的答案（显示与执行同一处判定）。"""
+        return self._target_name() or ""
 
     def _target_name(self) -> "str | None":
-        """这一次要输入哪一项 —— **全插件唯一的判定**（面板按钮与整行点击共用）。
+        """这一次要输入哪一项 —— **全插件唯一的判定**（下拉显示 / 整行点击 / 按钮 / 热键共用）。
 
-        选中项 → 上次项 → 唯一那一项。
+        三档：用户在下拉里改选过的那一项 → 上次成功用过的那一项 → 候选里的**第一项**。
 
-        为什么必须有最后一档：上次项 2026-09-29 起**只活在内存**（进程一重启就是空），
-        而「一键输入」那枚按钮此前只认它 ⇒ 每次重启后按钮必然失败，且失败文案让用户
-        「去面板下拉选一项」—— 可面板下拉选了之后按钮仍然不看它，照旧失败。
-        两个入口各判一次「该输哪一项」，是这件事坏掉的根。
+        为什么最后一档是「第一项」而不是「只有一项时才用它」：面板那枚下拉在有条目时
+        **从不显示为空**（``ProfileSelector`` 的回落就是第一项），所以「显示第一项」本身
+        就是用户看到的选择。此前只在「只有一项」时成立，于是两条以上时下拉明明显示着一
+        项、点整行 / 按热键却报「还没有上次用的输入项」—— 界面显示与执行判定各说一套，
+        是 2026-11-24 那次「一键输入怎么点都不行」的根。更隐蔽的一半是：用户点开下拉
+        重选**当前显示的那一项**时 ``currentTextChanged`` 根本不发（值没变）⇒ 插件永远
+        收不到 ``on_change``，改选这条路也自救不了。
+
+        前两档都要在当前候选里核对一遍：条目被改名 / 删掉之后，旧名字解析不出来，
+        跳过它继续回落，绝不返回一个打不出来的项（与 ``ProfileSelector`` 的回落同口径）。
         """
-        return self._choice or self.get_last() or self._sole_profile()
+        names = self._profile_names()
+        for name in (self._choice, self.get_last()):
+            if name in names:
+                return name
+        return names[0] if names else None
 
     def _choice_remember(self, name: str) -> None:
         """``ChoiceSpec.on_change``：**只记选中，不执行输入**。"""

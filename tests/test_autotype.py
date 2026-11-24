@@ -317,19 +317,26 @@ def test_type_profile_full_pipeline(monkeypatch, qtbot, tmp_path):
     assert p.get_last() == "demo"
 
 
-def test_type_last_without_a_last_item_points_at_the_panel_row(monkeypatch, tmp_path):
-    """无上次项时**不再弹列表选择框** —— 回一句回执，指用户去面板那一行选。
+def test_after_a_restart_it_types_the_item_the_panel_dropdown_shows(
+    monkeypatch, qtbot, tmp_path
+):
+    """重启后（内存里没有「上次项」）按热键 / 点按钮：打**下拉当时显示的那一项**。
 
-    改前这里弹 ``QInputDialog.getItem``（模态）：选项本来就在面板那一行的下拉里
-    （``ChoiceSpec``），同一件事两个入口只是让用户多一层选择；而那个框是本文件能进
-    ``PLUGIN_PYSIDE6_WHITELIST`` 的最后一个理由。
+    2026-11-24 真机坏法：有两条以上输入项时，面板下拉明明显示着第一条，点整行 /
+    按热键却报「还没有上次用的输入项 —— 请到面板那一行用下拉选一项」，而用户去点
+    下拉里**已经显示着的那一项**又不会发 ``currentTextChanged``（值没变）⇒ 两条路
+    都救不回来，观感就是「一键输入怎么点都不行」。
 
-    **判据取「一个字符都没打出去」＋「回执指了路」**：只判「没弹框」（例如断言
-    ``_pick_profile`` 不存在）挡不住回退，只判「返回了东西」也挡不住
-    「返回一句没用的话」—— 用户看到的必须是**下一步该做什么**。
+    违规必抓：把 ``_target_name`` 的最后一档写回「只有一项时才回落」（``_sole_profile``），
+    或者让 ``_choice_current`` 自带一份「显示哪一项」的判定，本用例会红 —— 那正是
+    「显示与执行各说一套」的那一半。
     """
     sent: list[str] = []
     monkeypatch.setattr(engine, "post_char", lambda ch: sent.append(ch))
+    monkeypatch.setattr(
+        "barkit.plugins.autotype.plugin.engine.ensure_english",
+        lambda auto_switch, require: (True, "ok"),
+    )
     cfg = {
         "plugins": {
             "autotype": {
@@ -341,14 +348,41 @@ def test_type_last_without_a_last_item_points_at_the_panel_row(monkeypatch, tmp_
         }
     }
     p, _ = _plugin_with(tmp_path, monkeypatch, cfg)
+    assert p.get_last() is None, "前提：刚重启，内存里没有上次项"
+    assert p._choice is None, "前提：用户没动过下拉"
+    assert p._choice_current() == "first", "下拉显示的就是第一条 —— 判定必须认它"
 
     result = p.type_last()
 
-    assert sent == [], "挑不出要打哪一项，就一个字符都不该打出去"
-    assert p._overlay is None, "没有倒计时浮层（那意味着已经在打了）"
-    assert result is not None and result.outcome is ActionOutcome.FAILED
-    assert "面板" in result.text, "要指路：选项在面板那一行的下拉里"
-    assert p.get_last() is None, "这次没打成，不该记成「上次用了它」"
+    assert result is None, "该交给倒计时浮层去跑，而不是当场回一句失败"
+    assert p._overlay is not None, "没有起倒计时浮层（那意味着根本没要打）"
+    qtbot.waitUntil(
+        lambda: p._overlay is None or not p._overlay.isVisible(), timeout=3000
+    )
+    assert sent == ["1"], f"打的不是下拉显示的那一项：{sent}"
+
+
+def test_a_stale_selection_or_last_item_falls_back_to_a_real_entry(monkeypatch, tmp_path):
+    """条目改名 / 删掉之后，旧名字不许把「该输哪一项」卡死，也不许返回解析不出来的项。
+
+    回落口径与 ``ProfileSelector`` 同一条：候选集合变了，旧值不在册就落到第一项。
+    违规必抓：把 ``_target_name`` 写成 ``self._choice or self.get_last() or names[0]``
+    （不核对候选）—— 那样下拉会显示第一项、判定却拿旧名字去 ``resolve_profile``，
+    回执变成「未找到输入项」，又是显示与执行各说一套。
+    """
+    cfg = {
+        "plugins": {
+            "autotype": {
+                "enabled": True,
+                "profiles": [{"name": "kept", "text": "k"}, {"name": "renamed", "text": "r"}],
+            }
+        }
+    }
+    p, _ = _plugin_with(tmp_path, monkeypatch, cfg)
+    p._choice, p._last = "已删除的那一项", "已改名的另一项"
+
+    assert p._target_name() == "kept"
+    assert p._choice_current() == "kept"
 
 
 def test_one_click_input_works_after_a_restart_when_there_is_only_one_item(
