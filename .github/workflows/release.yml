@@ -59,14 +59,22 @@ jobs:
           xattr -cr "$APP"
 
           # PyInstaller 对带点的嵌套 .app（bt_guard 的 BTHelper.app）做「目录改名 +
-          # 双向交叉链接」，会形成符号链接环，codesign 连外层签名都会 ELOOP。
-          # 用仓库里的原始 .app 覆盖成真实目录（内容未改，签名稍后统一重做）。
+          # 双向交叉链接」，同一个 bundle 被劈成两半（Frameworks 侧只有可执行文件，
+          # Resources 侧只有 Info.plist/签名），两边都不自洽：
+          #   1) codesign 会报 ELOOP；
+          #   2) 运行期 `open -n` 报 "Launchd job spawn failed"，蓝牙助手起不来。
+          # 用仓库里的原始 .app 把**两侧**都覆盖成真实完整目录。
           DST="$APP/Contents/Frameworks/barkit/plugins/bt_guard/resources"
+          RDST="$APP/Contents/Resources/barkit/plugins/bt_guard/resources"
           SRC="src/barkit/plugins/bt_guard/resources/BTHelper.app"
           if [[ -d "$DST" && -d "$SRC" ]]; then
             rm -rf "$DST/BTHelper.app" "$DST/BTHelper__dot__app"
             cp -R "$SRC" "$DST/BTHelper.app"
-            log "已用原始 BTHelper.app 替换交叉链接目录"
+            if [[ -d "$RDST" ]]; then
+              rm -rf "$RDST/BTHelper.app"
+              cp -R "$SRC" "$RDST/BTHelper.app"
+            fi
+            log "已用原始 BTHelper.app 替换两侧的拆分目录"
           fi
 
           fail=0
@@ -98,6 +106,26 @@ jobs:
           while IFS= read -r -d '' nested; do
             sign_one "$nested"
           done < <(find "$APP/Contents/Frameworks" -type d -name '*.app' -print0)
+
+          # 打包自检：助手必须是自洽的真实 bundle —— 缺了这步，坏包会静默发出去
+          # （v0.1.1 就是这样：蓝牙助手 open 不起来，唤醒重连永远失败）。
+          HELPER="$DST/BTHelper.app"
+          if [[ -d "$HELPER" ]]; then
+            for rel in Contents/Info.plist Contents/MacOS/bt-helper \
+                       Contents/_CodeSignature/CodeResources; do
+              if [[ ! -f "$HELPER/$rel" || -L "$HELPER/$rel" ]]; then
+                log "::error::BTHelper.app 不完整：$rel 不是普通文件（被拆分了）"
+                fail=1
+              fi
+            done
+            plutil -lint "$HELPER/Contents/Info.plist" >>"$LOG" 2>&1 \
+              || { log "::error::BTHelper.app 的 Info.plist 不合法"; fail=1; }
+            codesign --verify --deep --strict "$HELPER" >>"$LOG" 2>&1 \
+              || { log "::error::BTHelper.app 签名校验失败"; fail=1; }
+            log "BTHelper.app 自检通过（真实 bundle + 签名有效）"
+          else
+            log "::warning::未找到 BTHelper.app（bt_guard 可能已被裁剪）"
+          fi
 
           # .framework 是 bundle，内部文件签完后再整包签一次
           for fw in "$APP"/Contents/Frameworks/*.framework; do
