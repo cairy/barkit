@@ -59,30 +59,41 @@ jobs:
           xattr -cr "$APP"
 
           fail=0
+          # codesign 的报错同时转成 ::error:: 注解：Actions 页面可见，
+          # 也无需仓库管理员权限就能通过 check-run annotations API 读到原文。
+          sign_one() {
+            local target="$1" out
+            if out=$(codesign --force --sign - "$target" 2>&1); then
+              printf '%s\n' "$out" >>"$LOG"
+            else
+              printf '%s\n' "$out" >>"$LOG"
+              log "::error::签名失败 ${target#"$PWD"/}: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-400)"
+              fail=1
+            fi
+          }
+
           # 由内向外逐个签 Mach-O（.so / .dylib / 可执行文件），最后签 .app 本身。
           # 不用 codesign --deep：它对嵌套 framework 与符号链接的遍历容易失败，
-          # 且报错说不清是哪个组件；逐个签能精确定位，失败就指出文件。
+          # 且报错说不清是哪个组件；逐个签能精确定位。
           while IFS= read -r -d '' f; do
             if file -b "$f" | grep -q 'Mach-O'; then
-              if ! codesign --force --sign - "$f" >>"$LOG" 2>&1; then
-                log "::error::签名失败: $f"; fail=1
-              fi
+              sign_one "$f"
             fi
           done < <(find "$APP/Contents" -type f ! -path '*/_CodeSignature/*' -print0)
 
           # .framework 是 bundle，内部文件签完后再整包签一次
           for fw in "$APP"/Contents/Frameworks/*.framework; do
             [[ -d "$fw" ]] || continue
-            codesign --force --sign - "$fw" >>"$LOG" 2>&1 \
-              || { log "::error::签名失败: $fw"; fail=1; }
+            sign_one "$fw"
           done
-
-          codesign --force --sign - "$APP" >>"$LOG" 2>&1 \
-            || { log "::error::签名失败: $APP"; fail=1; }
+          sign_one "$APP"
 
           # 验不过就不产出 dmg
-          codesign --verify --all-architectures --deep --strict --verbose=2 "$APP" >>"$LOG" 2>&1 \
-            || { log "::error::签名校验失败"; fail=1; }
+          if ! out=$(codesign --verify --all-architectures --deep --strict --verbose=2 "$APP" 2>&1); then
+            printf '%s\n' "$out" >>"$LOG"
+            log "::error::签名校验失败: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-500)"
+            fail=1
+          fi
 
           summary
           codesign -dvv "$APP" 2>&1 | sed -n '1,8p'
