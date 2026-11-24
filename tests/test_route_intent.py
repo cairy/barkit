@@ -547,14 +547,23 @@ def _applied_once(rule_name="office", iface="en5", wrote=None):
 
 
 def _continued(rule=None, prior_net=None, current=None, **kw):
-    """探不中（``probe`` 恒 False）时这条规则最终报成什么。"""
+    """探不中（``probe`` 恒 False）时这条规则最终报成什么。
+
+    续上判定里的「网卡在线」走真实 ``iface_up``（``ifconfig en5``），本机有这块网卡才
+    为真；CI 的 macOS 虚拟机没有 ⇒ 这里临时当它在线，避免用例依赖开发机硬件。用完还原。
+    """
     prior_rules, net_seg = _applied_once()
-    return intent_mod.build_intent(
-        _routes([rule or PINNED_OFFICE]), None, probe=lambda *_a: False,
-        prior_rules=kw.get("prior_rules", prior_rules),
-        prior_net=kw.get("prior_net", net_seg if prior_net is None else prior_net),
-        config_probe=kw.get("config_probe") or (lambda _iface: current),
-    )["rules"][0]
+    saved_iface_up = intent_mod.iface_up
+    intent_mod.iface_up = lambda _iface: True
+    try:
+        return intent_mod.build_intent(
+            _routes([rule or PINNED_OFFICE]), None, probe=lambda *_a: False,
+            prior_rules=kw.get("prior_rules", prior_rules),
+            prior_net=kw.get("prior_net", net_seg if prior_net is None else prior_net),
+            config_probe=kw.get("config_probe") or (lambda _iface: current),
+        )["rules"][0]
+    finally:
+        intent_mod.iface_up = saved_iface_up
 
 
 def test_a_pinned_scene_keeps_matching_while_its_own_config_is_still_on_the_nic():
