@@ -16,10 +16,11 @@ macOS 菜单栏常驻的个人工具集：OCR/条码识别、通知守卫、自�
 
 1. 下载 `BarKit-<版本>-ARM64.dmg`（仅 Apple Silicon，要求 macOS 12+）。
 2. 双击挂载，把 **BarKit** 拖进「应用程序」。
-3. 首次启动会提示「无法验证开发者」——产物只做了 ad-hoc 签名，没有开发者证书、也未公证。
-   放行方式二选一：
-   - 右键 App →「打开」→ 再在弹窗里点「打开」；
-   - 或在终端执行 `xattr -dr com.apple.quarantine /Applications/BarKit.app`，之后正常双击。
+3. 首次启动会被 Gatekeeper 拦下（「Apple 无法验证…」）——产物只做了 ad-hoc 签名，
+   没有开发者证书、也未公证。放行方式二选一：
+   - 终端执行 `xattr -dr com.apple.quarantine /Applications/BarKit.app`，之后正常双击（最快）；
+   - 或：系统设置 → 隐私与安全性 → 滚到「安全性」→ 点「仍要打开」→ 输入密码。
+     注意 macOS 15 起右键「打开」已不能绕过 Gatekeeper，只能走这里。
 
 ## 从源码安装
 
