@@ -5,7 +5,7 @@ name: Release
 #
 # 当前为**ad-hoc 签名**版本（codesign --sign -）：满足 Apple Silicon 对代码签名的
 # 硬性要求（未签名的 arm64 二进制会被内核直接杀掉），但**不等于**可信分发——
-# 产物仍无开发者证书、未公证，首次打开需右键「打开」或在系统设置里放行。
+# 产物仍无开发者证书、未公证，首次打开需去隔离（xattr）或在系统设置里「仍要打开」。
 # 日后拿到 Apple Developer 账号，把签名步骤换成 Developer ID + notarytool + staple 即可。
 on:
   push:
