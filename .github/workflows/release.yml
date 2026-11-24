@@ -40,16 +40,53 @@ jobs:
 
       - name: ad-hoc 签名
         run: |
-          set -euo pipefail
+          set -uo pipefail
           APP="dist/BarKit.app"
-          # 清掉可能妨碍签名的扩展属性（CI 上一般没有，写上更稳）
+          LOG="$RUNNER_TEMP/codesign.log"
+          : > "$LOG"
+          log() { echo "$*" | tee -a "$LOG"; }
+
+          summary() {
+            { echo "### ad-hoc 签名"; echo '```'; tail -60 "$LOG"; echo '```'; } \
+              >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          if [[ ! -d "$APP" ]]; then
+            log "::error::$APP 不存在"; ls -la dist | tee -a "$LOG"; summary; exit 1
+          fi
+
+          # 清掉可能妨碍签名的扩展属性
           xattr -cr "$APP"
-          # --deep：连同 Frameworks/ 里的 PySide6、PyObjC 与插件二进制一起签，
-          # 否则 arm64 下未签名的 dylib/可执行文件会在加载时被内核拒绝。
-          codesign --force --deep --sign - --timestamp=none "$APP"
-          # 立刻验一遍：签名无效就别产出 dmg
-          codesign --verify --deep --strict --verbose=2 "$APP"
-          codesign -dvvv "$APP" 2>&1 | sed -n '1,8p'
+
+          fail=0
+          # 由内向外逐个签 Mach-O（.so / .dylib / 可执行文件），最后签 .app 本身。
+          # 不用 codesign --deep：它对嵌套 framework 与符号链接的遍历容易失败，
+          # 且报错说不清是哪个组件；逐个签能精确定位，失败就指出文件。
+          while IFS= read -r -d '' f; do
+            if file -b "$f" | grep -q 'Mach-O'; then
+              if ! codesign --force --sign - "$f" >>"$LOG" 2>&1; then
+                log "::error::签名失败: $f"; fail=1
+              fi
+            fi
+          done < <(find "$APP/Contents" -type f ! -path '*/_CodeSignature/*' -print0)
+
+          # .framework 是 bundle，内部文件签完后再整包签一次
+          for fw in "$APP"/Contents/Frameworks/*.framework; do
+            [[ -d "$fw" ]] || continue
+            codesign --force --sign - "$fw" >>"$LOG" 2>&1 \
+              || { log "::error::签名失败: $fw"; fail=1; }
+          done
+
+          codesign --force --sign - "$APP" >>"$LOG" 2>&1 \
+            || { log "::error::签名失败: $APP"; fail=1; }
+
+          # 验不过就不产出 dmg
+          codesign --verify --all-architectures --deep --strict --verbose=2 "$APP" >>"$LOG" 2>&1 \
+            || { log "::error::签名校验失败"; fail=1; }
+
+          summary
+          codesign -dvv "$APP" 2>&1 | sed -n '1,8p'
+          exit "$fail"
 
       - name: 打包 .dmg
         run: |
@@ -68,3 +105,15 @@ jobs:
         with:
           files: ${{ env.DMG }}
           generate_release_notes: true
+          # 指定 body 时它会被**前置**到自动生成的 changelog 之前
+          body: |
+            ## 下载与安装
+
+            1. 下载下方的 `BarKit-${{ github.ref_name }}-ARM64.dmg`（仅 Apple Silicon，要求 macOS 12+）。
+            2. 双击挂载，把 **BarKit** 拖进「应用程序」。
+            3. 首次启动会提示「无法验证开发者」——产物只做了 ad-hoc 签名，没有开发者证书、也未公证。
+               放行方式二选一：
+               - 右键 App →「打开」→ 再在弹窗里点「打开」；
+               - 或在终端执行 `xattr -dr com.apple.quarantine /Applications/BarKit.app`，之后正常双击。
+
+            更多说明见 [README](https://github.com/${{ github.repository }}#下载普通用户)。
