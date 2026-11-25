@@ -32,9 +32,23 @@ try:
 except ImportError:
     _AX_OK = False
 
+try:
+    import Quartz
+
+    _CG_OK = True
+except ImportError:
+    _CG_OK = False
+
 #: 系统设置 → 隐私与安全性 → 辅助功能 的深链（``open`` 可直接打开该面板）。
 ACCESSIBILITY_PANE_URL = (
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+)
+
+#: 系统设置 → 隐私与安全性 → **输入监控** 的深链。
+#: 全局热键用的是「只监听」的键盘事件 tap，macOS 把那一项归到输入监控（不是辅助功能）；
+#: 引导语若只说辅助功能，用户照着做仍然按不响。
+INPUT_MONITORING_PANE_URL = (
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
 )
 
 
@@ -64,3 +78,29 @@ def request_accessibility() -> bool:
 def open_accessibility_pane() -> None:
     """打开系统设置 → 隐私与安全性 → 辅助功能。"""
     subprocess.Popen(["/usr/bin/open", ACCESSIBILITY_PANE_URL])
+
+
+def open_input_monitoring_pane() -> None:
+    """打开系统设置 → 隐私与安全性 → 输入监控。"""
+    subprocess.Popen(["/usr/bin/open", INPUT_MONITORING_PANE_URL])
+
+
+def listen_event_access() -> "bool | None":
+    """能否创建「只监听」的键盘事件 tap（即输入监控是否已授予）。
+
+    **只读预检，不弹系统窗口**（``CGPreflightListenEventAccess``）。返回 ``None``
+    表示「这个系统答不上来」（非 macOS / 太旧的系统没有这个 API）—— 调用方应把
+    ``None`` 当「不知道」处理，而不是当「没授权」，否则会在正常机器上误报。
+
+    辅助功能权限**包含**输入监控，所以两边任一为真都算能监听（见
+    :func:`accessibility_trusted`）。
+    """
+    if not _CG_OK:
+        return False
+    preflight = getattr(Quartz, "CGPreflightListenEventAccess", None)
+    if preflight is None:
+        return None
+    try:
+        return bool(preflight())
+    except Exception:  # noqa: BLE001 —— 预检失败只意味着「答不上来」
+        return None

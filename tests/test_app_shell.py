@@ -21,7 +21,7 @@ from barkit.core.events import EventBus
 from barkit.core.heartbeat import Heartbeat
 from barkit.core.registry import Registry
 from barkit.core.scheduler import Scheduler
-from barkit.shell.app_shell import AppShell
+from barkit.shell.app_shell import FRAMEWORK_NOTIFY_ID, AppShell
 
 
 def _core(tmp_path):
@@ -93,6 +93,107 @@ def test_panel_open_is_wired_to_the_framework_event(qtbot, qapp):
 
 
 # ──────────────────────────────────────────────
+# A2. 热键权限：宿主接线与启动自检（2026-11-25）
+# ──────────────────────────────────────────────
+
+class _HotkeysStub:
+    """热键管理器桩：只给它被这几条路径消费的三个口。"""
+
+    def __init__(self, failures=None, available=False) -> None:
+        self._failures = dict(failures or {})
+        self.available = available
+
+    def failures(self):
+        return dict(self._failures)
+
+    def failure_of(self, name):
+        return self._failures.get(name)
+
+
+class _StubHub:
+    """通知中枢桩：记下 (plugin_id, request)。"""
+
+    def __init__(self) -> None:
+        self.sent: list = []
+
+    def send(self, plugin_id, request):
+        self.sent.append((plugin_id, request))
+        return True
+
+
+def test_hotkey_host_answers_failure_by_name(qapp):
+    """回归（2026-11-25）：``failure_of`` 必须是「按名字问」的一参可调用。
+
+    此前注入的是零参 lambda（``lambda: ... else self._hotkeys.failure_of``），
+    页面按 ``failure_of(entry.name)`` 调 ⇒ TypeError ⇒ 被页面的 ``except Exception``
+    吞掉 ⇒ 「没挂上」的原因**一次都没显示过**。这条锁的是接线，不是页面。
+    """
+    shell = AppShell(qapp)
+    # 管理器还没建（装配顺序）：不报错，答「没有原因」
+    assert shell._hotkey_host().failure_of("recognize") is None
+
+    shell._hotkeys = _HotkeysStub({"recognize": "CGEventTap 不可用"}, available=False)
+    host = shell._hotkey_host()
+    assert host.failure_of("recognize") == "CGEventTap 不可用"
+    assert host.failure_of("autotype_last") is None, "没失败的条目不该有原因"
+    assert host.available is False
+
+
+def test_hotkey_permission_notice_is_delivered(qapp, tmp_path):
+    """热键因缺权限一条都没挂上 ⇒ 启动自检发一条带「去授权」按钮的系统通知。
+
+    判据只用「确实想挂却没挂上」（``failures()``）：日志没人看、设置页没人翻，
+    这一条是用户唯一一定会撞见的出口。
+    """
+    scheduler, registry = _core(tmp_path)
+    hub = _StubHub()
+    registry.ctx.notify = hub
+    shell = AppShell(qapp)
+    shell._registry = registry
+    shell._hotkeys = _HotkeysStub({"autotype_last": "CGEventTap 不可用"},
+                                  available=False)
+
+    shell._warn_hotkeys_unavailable()
+
+    assert len(hub.sent) == 1, "热键全挂不上却一声不吭"
+    plugin_id, request = hub.sent[0]
+    assert plugin_id == FRAMEWORK_NOTIFY_ID, "框架通知必须走框架的归属 id"
+    assert [a.label for a in request.actions] == ["去授权"]
+    assert "输入监控" in request.body and "辅助功能" in request.body
+    scheduler.stop_all()
+
+
+def test_no_permission_notice_when_nothing_wants_a_hotkey(qapp, tmp_path):
+    """控制组：键位全停用（没有失败项）或权限正常 ⇒ 不许弹。"""
+    scheduler, registry = _core(tmp_path)
+    hub = _StubHub()
+    registry.ctx.notify = hub
+    shell = AppShell(qapp)
+    shell._registry = registry
+
+    shell._hotkeys = _HotkeysStub({}, available=False)
+    shell._warn_hotkeys_unavailable()
+    assert hub.sent == [], "键位全停用不该被报成权限问题"
+
+    shell._hotkeys = _HotkeysStub({"autotype_last": "键位冲突"}, available=True)
+    shell._warn_hotkeys_unavailable()
+    assert hub.sent == [], "权限正常时挂不上属键位问题，逐条原因在设置页"
+    scheduler.stop_all()
+
+
+def test_framework_notify_router_dispatches_action():
+    """框架通知的按钮回程：按动作名派给登记的回调，没登记的动作不抛。"""
+    from barkit.capabilities.notify import FrameworkActionRouter
+
+    router = FrameworkActionRouter()
+    calls: list = []
+    router.register("open_privacy", lambda: calls.append("opened"))
+    router.on_notification_action("open_privacy")
+    assert calls == ["opened"]
+    router.on_notification_action("nope")       # 不该抛（通知可能来自旧版本）
+
+
+# ──────────────────────────────────────────────
 # B. 全链路冒烟（《重构-开工手册》§4.3 的 ⑧）
 # ──────────────────────────────────────────────
 
@@ -161,6 +262,13 @@ class _StubHotkeys:
     def register(self, name: str, combo: str, callback) -> bool:
         self.registered[name] = combo
         return True
+
+    def failures(self) -> dict:
+        """全部注册成功 ⇒ 没有失败项（启动自检据此不弹权限通知）。"""
+        return {}
+
+    def failure_of(self, name: str):
+        return None
 
     def unregister_all(self) -> None:
         self.unregistered = True

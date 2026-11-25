@@ -20,7 +20,7 @@ from barkit.shell.macos_window import (
     set_activation_policy,
 )
 
-from .consts import log
+from .consts import FRAMEWORK_NOTIFY_ID, log
 
 
 class _CoreMixin:
@@ -147,14 +147,19 @@ class _CoreMixin:
         ``reconcile_root_binaries`` 那处同款（L3 → L2 是允许方向，延迟导入让
         依赖面在 import 期不可见）。
         """
-        from barkit.capabilities.notify import NotificationHub
+        from barkit.capabilities.notify import FRAMEWORK_NOTIFY_ROUTER, NotificationHub
         from barkit.shell.macos_notify import MacNotifyBackend
 
         backend = MacNotifyBackend()
-        return NotificationHub(
-            backends=[backend],
-            resolve_plugin=lambda plugin_id: registry.plugins.get(plugin_id),
-        )
+
+        def resolve(plugin_id: str):
+            # 框架自己发的通知没有插件可回查（``FRAMEWORK_NOTIFY_ID`` 不在插件表里）：
+            # 交给框架路由器按动作名派发，否则按钮点了只会落一行「找不到发起它的插件」。
+            if plugin_id == FRAMEWORK_NOTIFY_ID:
+                return FRAMEWORK_NOTIFY_ROUTER
+            return registry.plugins.get(plugin_id)
+
+        return NotificationHub(backends=[backend], resolve_plugin=resolve)
 
     def _build_contributions(self, plugins, registry, scheduler) -> ContributionRegistry:
         """统一收集贡献，汇总三道拦截结果，并把 daemon 插件交给调度器。"""

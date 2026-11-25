@@ -16,6 +16,10 @@ log = logging.getLogger("barkit.shell.app_shell")
 #: 插件 —— 用一个不可能与插件 id 撞的名字（插件 id 是小写字母 + 点，不带斜杠）。
 FRAMEWORK_NOTIFY_ID = "framework/shell"
 
+#: 启动后多久做一次「热键能不能用」自检（毫秒）。
+#: 给足三秒：装配刚结束，系统授权弹窗、菜单栏图标落位都还在前面；太早发通知会被压掉。
+HOTKEY_PERMISSION_CHECK_MS = 3000
+
 #: 退出时给在跑的命令线程多长宽限（毫秒）。比 ``thread_reap.GRACE_MS`` 长：退出路上
 #: 没有界面可按，多等一两秒换来「线程都干净结束」是划算的；再长就不值了 —— 收不住的
 #: 由 thread_reap 代持，一样不崩。

@@ -25,6 +25,7 @@ import logging
 import objc
 from PySide6.QtCore import QObject, Qt, Signal
 
+from barkit.core import ax_trust
 from barkit.core.hotkey_table import Binding, Conflict, HotkeyTable
 
 log = logging.getLogger(__name__)
@@ -114,7 +115,22 @@ class HotkeyManager(QObject):
 
     @property
     def available(self) -> bool:
-        return _QUARTZ_OK
+        """此刻**能不能挂热键**：Quartz 在，且输入监控（或辅助功能）已授权。
+
+        早先这里只回答「Quartz 能不能 import」—— macOS 上恒为 ``True``，于是
+        「没授权」被当成「可用」：设置页那条「热键不可用」的警示**永远不出现**，
+        而实际一条都挂不上（2026-11-25 现场：用户按了两天快捷键，界面零提示）。
+
+        ``listen_event_access()`` 回 ``None`` 时按「可用」处理 —— 那是「这个系统
+        答不上来」，不是「没授权」，不能据此报警。
+        """
+        if not _QUARTZ_OK:
+            return False
+        access = ax_trust.listen_event_access()
+        if access is None:
+            return True
+        # 辅助功能包含输入监控的权限，两者任一为真就能建 listen-only tap
+        return bool(access) or ax_trust.accessibility_trusted()
 
     def conflict(self, name: str, combo: str, callback) -> "Conflict | None":
         """这次改动会不会撞上已在册的某条（**写盘之前**问，故与 register 同形状）。

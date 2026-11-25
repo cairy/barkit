@@ -195,6 +195,41 @@ class NotificationHub:
         return None
 
 
+class FrameworkActionRouter:
+    """框架**自己**发通知时的按钮回程（框架不是插件，没有 ``on_notification_action``）。
+
+    中枢的点击派发口径是「按 plugin_id 找回发起者」，而框架发通知时用的
+    ``FRAMEWORK_NOTIFY_ID`` 在插件表里查不到 —— 装配层把那个 id 解析到本对象，
+    再由这里按动作名派给登记过的回调。与插件那一路同构：**框架说「哪个动作」，
+    动作做什么由发起方登记**，中枢不认业务。
+
+    典型用途：热键因缺少「输入监控」权限挂不上时，通知上的「去授权」按钮要能
+    跳系统设置 —— 那条路径的主语是框架，不是任何组件。
+    """
+
+    def __init__(self) -> None:
+        self._handlers: "dict[str, Callable[[], None]]" = {}
+
+    def register(self, action: str, handler: "Callable[[], None]") -> None:
+        """登记一枚动作名 → 回调（重复登记以最后一次为准）。"""
+        self._handlers[action] = handler
+
+    def on_notification_action(self, key: str) -> None:
+        """中枢的回程口（主线程）：按动作名派发。"""
+        handler = self._handlers.get(key)
+        if handler is None:
+            log.info("框架通知的动作 %s 没有登记处理函数，已忽略", key)
+            return
+        try:
+            handler()
+        except Exception:  # noqa: BLE001 —— 一个动作不能掀翻通知回程
+            log.exception("框架处理通知动作 %s 时出错", key)
+
+
+#: 框架通知的动作路由（进程内单例；装配层把它接到通知中枢的归属解析上）。
+FRAMEWORK_NOTIFY_ROUTER = FrameworkActionRouter()
+
+
 class NotifyCapability(Plugin):
     """通知能力 mixin：给组件一个 ``notify()``，并把点击回程接到 ``on_notification_action``。
 

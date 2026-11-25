@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from barkit.core import thread_reap
+from barkit.core import ax_trust, thread_reap
 from barkit.core.hotkey_command import CommandRunner
 from barkit.shell.hotkey_catalog import (
     FEEDBACK_DEFAULTS,
@@ -25,7 +25,7 @@ from barkit.shell.hotkey_catalog import (
 from barkit.shell.hotkey_feedback import wrap_hotkey_callback
 from barkit.shell import placement
 
-from .consts import _EXIT_GRACE_MS, log
+from .consts import FRAMEWORK_NOTIFY_ID, _EXIT_GRACE_MS, log
 
 
 class _HotkeyMixin:
@@ -325,3 +325,53 @@ class _HotkeyMixin:
         # 别在这里另取一次矩形：那会绕过「锚必须是 ``placement.Anchor``」这条约定。
         self._settings.show_and_raise(placement.anchor_of_status_item(self.status_item))
         self._settings.select_page("快捷键")
+
+    # ---------- 启动自检：热键没挂上要说出来 ----------
+
+    #: 框架通知上的动作名（登记进 ``FRAMEWORK_NOTIFY_ROUTER``，与按钮一一对应）。
+    _HOTKEY_PRIVACY_ACTION = "open_privacy"
+
+    def _warn_hotkeys_unavailable(self) -> None:
+        """启动后自检：有键位要挂、却一条都没挂上时，主动说一声。
+
+        **为什么需要**（2026-11-25 现场）：缺「输入监控」时所有热键静默失效 ——
+        日志里只有几行 ERROR，设置页那条警示又是哑炮（``available`` 恒真），
+        用户的体感就是「快捷键莫名其妙不灵了」，两天都不会知道该去授权。
+
+        判据只用「确实想挂的键位」（``failures()`` 非空）：键位为空是用户主动
+        停用，那种情况不该弹。权限正常但仍然挂不上的，是键位冲突 / 非法键位 ——
+        逐条原因在设置页「快捷键」，这里不重复喊。
+        """
+        if self._hotkeys is None:
+            return
+        failures = self._hotkeys.failures()
+        if not failures:
+            return
+        if self._hotkeys.available:
+            log.info("热键有 %d 条未挂上（权限正常，多半是键位冲突），原因见「快捷键」页",
+                     len(failures))
+            return
+        hub = getattr(getattr(self._registry, "ctx", None), "notify", None)
+        if hub is None:
+            log.warning("热键未挂上且通知中枢缺席，无法提示用户去授权")
+            return
+
+        from barkit.capabilities.notify import (
+            FRAMEWORK_NOTIFY_ROUTER,
+            NotificationAction,
+            NotificationRequest,
+        )
+
+        # 按钮 → 打开「输入监控」面板（真正卡住热键的是这一项；辅助功能那句写进正文）
+        FRAMEWORK_NOTIFY_ROUTER.register(
+            self._HOTKEY_PRIVACY_ACTION, ax_trust.open_input_monitoring_pane
+        )
+        ok = hub.send(FRAMEWORK_NOTIFY_ID, NotificationRequest(
+            key="framework.hotkeys.permission",
+            title="全局快捷键没有生效",
+            body="缺少「输入监控」或「辅助功能」权限，快捷键按下去没有反应。"
+                 "点「去授权」勾上 BarKit，然后重启 BarKit。",
+            actions=(NotificationAction(self._HOTKEY_PRIVACY_ACTION, "去授权"),),
+        ))
+        log.info("热键未挂上（%d 条），已%s系统通知引导授权",
+                 len(failures), "" if ok else "尝试")

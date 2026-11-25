@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QSystemTrayIcon,
@@ -30,6 +31,7 @@ from barkit.shell.renderers.badge import Candidate
 from barkit.shell.settings import SettingsWindow
 from barkit.shell.status_item import StatusItem
 
+from .consts import HOTKEY_PERMISSION_CHECK_MS
 from .core import _CoreMixin
 from .feedback import _FeedbackMixin
 from .hotkeys import _HotkeyMixin
@@ -183,6 +185,9 @@ class AppShell(
         self._register_framework_hotkeys()
         # 自建条目同样在最后：它们跑的命令与配置同批，此时配置已注入插件 schema
         self._register_custom_hotkeys()
+        # 热键自检（2026-11-25）：缺「输入监控」时所有热键静默失效，而那一刻没有
+        # 任何界面在场 —— 等 UI 落位后主动发一条系统通知，别让用户自己猜。
+        QTimer.singleShot(HOTKEY_PERMISSION_CHECK_MS, self._warn_hotkeys_unavailable)
         # 手改 YAML 也即时生效（设置窗路径另有回调，见 _build_settings）：用户在配置里
         # 能改的东西有两类 —— 托盘底图来源、三个显示位的开关。
         config.changed.connect(self._on_config_changed)

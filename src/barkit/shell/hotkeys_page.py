@@ -28,6 +28,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -83,6 +85,8 @@ FILTER_W = 96
 #: 行的内边距：**左右是 0**，只留上下 —— 行整条铺在分区卡里，左右那一段由卡的
 #: 内容区统一给。左右若自带一份，行里的图标盒就比卡标题多缩进一截（同一条竖向基准线
 #: 上对不齐），hover 底还会在卡内缩出一圈「框中框」；行与行之间靠间距分，不靠内边距撑。
+log = logging.getLogger(__name__)
+
 #: 上下 8 = 骨架图标盒（36）与两侧控件（22 / 28）之间的呼吸位，与主面板的行同档。
 PAD_ROW = (0, 8, 0, 8)
 
@@ -171,8 +175,10 @@ class HotkeysPage(QWidget):
         lay.addWidget(self._stack, stretch=1)
 
         if not self._available:
-            list_lay.addWidget(_warn("本机热键不可用（缺辅助功能权限或非 macOS），"
-                                     "下面的键位都按不响 —— 去「维护 → 权限」授权后重启。",
+            list_lay.addWidget(_warn("本机热键不可用（缺「输入监控」或「辅助功能」权限，"
+                                     "或非 macOS），下面的键位都按不响 —— "
+                                     "去「系统设置 → 隐私与安全性 → 输入监控」勾上 BarKit，"
+                                     "重启 BarKit 后生效。",
                                      self._list_page))
         list_lay.addWidget(note(
             "框架与组件给的只能改键 / 停用 / 初始化，不能删；改动立即生效，不用重启。",
@@ -220,6 +226,10 @@ class HotkeysPage(QWidget):
         try:
             return self._failure_of(entry.name)
         except Exception:  # noqa: BLE001 —— 问原因问崩了不该让整页起不来
+            # 别只吞：这条 except 曾把一个真 bug 藏了两个月（注入的 failure_of 是零参
+            # lambda，按名字调用必然 TypeError ⇒ 所有行都不显示原因，且没人知道）。
+            log.debug("取热键 %s 的失败原因时出错（按「没挂上」处理）",
+                      entry.name, exc_info=True)
             return None
 
     def _build_bar(self, parent: QWidget) -> QHBoxLayout:

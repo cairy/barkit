@@ -106,7 +106,8 @@ def _spec(name="recognize", label="截图识别", default="ctrl+alt+o", plugin_i
 
 
 def _page(qtbot, *, hotkeys=(), components=(), values=None, rebind=True, conflict=None,
-          actions=FRAMEWORK_ACTIONS, customs=None, run_command=None, failure_of=None):
+          actions=FRAMEWORK_ACTIONS, customs=None, run_command=None, failure_of=None,
+          available=True):
     cfg = _Cfg(values, customs)
     page = HotkeysPage(
         config=cfg,
@@ -114,6 +115,7 @@ def _page(qtbot, *, hotkeys=(), components=(), values=None, rebind=True, conflic
         actions=actions,
         on_rebind=lambda _name: rebind,
         conflict_of=conflict,
+        hotkeys_available=available,
         run_command=run_command,
         failure_of=failure_of,
     )

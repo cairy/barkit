@@ -87,6 +87,28 @@ class _UIMixin:
         manager.subscribe_all_active()
         return manager
 
+    def _hotkey_host(self) -> HotkeyHost:
+        """「快捷键」页要的宿主能力（页面不自己去翻注册表 / 热键管理器）。
+
+        ``failure_of`` **必须是「按名字问」的一参可调用** —— 页面是
+        ``self._failure_of(entry.name)`` 这样用的。此前注入的是零参 lambda
+        （``lambda: ... else self._hotkeys.failure_of``），页面一调就 TypeError，
+        又被页面那边的 ``except Exception`` 吞掉 ⇒ 「没挂上」的原因**一次都没上过屏**，
+        用户对着「按了没反应」无从下手（2026-11-25 现场，两天）。
+        单测见 ``test_hotkey_host_answers_failure_by_name``。
+        """
+        return HotkeyHost(
+            actions=self._framework_actions(),
+            rebind=self._rebind_hotkey,
+            conflict_of=self._hotkey_conflict,
+            available=bool(self._hotkeys is not None and self._hotkeys.available),
+            feedback=self._feedback,
+            # **惰性**取：热键管理器可能还没建好（装配顺序），而失败原因是「此刻」的
+            # 事实 —— 页面每次重画都该问到最新的那一份，不是装配那一次的快照。
+            failure_of=(lambda name: None if self._hotkeys is None
+                        else self._hotkeys.failure_of(name)),
+        )
+
     def _build_settings(self, contributions, manager) -> SettingsWindow:
         # parent=None：避免 QDialog 在首次 show() 时自动居中到（顶部锚定的）panel，
         # 否则 380px 高的设置窗会被推到屏幕上方触发「outside any known screen」警告。
@@ -105,17 +127,7 @@ class _UIMixin:
             # 状态机优先级调完同款：重算代表态（哪台机上标题栏 / 托盘）
             on_state_priority_changed=self._refresh_display_slots,
             # 快捷键页：内置动作名单 + 改键重挂 + 撞车查询（页面不自己去翻注册表）
-            hotkey_host=HotkeyHost(
-                actions=self._framework_actions(),
-                rebind=self._rebind_hotkey,
-                conflict_of=self._hotkey_conflict,
-                available=bool(self._hotkeys is not None and self._hotkeys.available),
-                feedback=self._feedback,
-                # **惰性**取：热键管理器可能还没建好（装配顺序），而失败原因是「此刻」的
-                # 事实 —— 页面每次重画都该问到最新的那一份，不是装配那一次的快照。
-                failure_of=(lambda: None if self._hotkeys is None
-                            else self._hotkeys.failure_of),
-            ),
+            hotkey_host=self._hotkey_host(),
             # 变量页：列清单 / 现算一次 / 弹一次询问 / 加载问题 / 改完通知谁（页面不自己去翻变量池）
             variables_host=self._variables_view(),
         )
