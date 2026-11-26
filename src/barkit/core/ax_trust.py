@@ -85,6 +85,27 @@ def open_input_monitoring_pane() -> None:
     subprocess.Popen(["/usr/bin/open", INPUT_MONITORING_PANE_URL])
 
 
+def request_listen_access() -> bool:
+    """申请「输入监控」授权 —— **这是 BarKit 出现在那个列表里的唯一途径**。
+
+    只建 tap 不算申请：``CGEventTapCreate`` 失败后 macOS 不会把 App 列进「输入监控」，
+    用户点开面板只会看到一张空名单（2026-11-26 现场：通知引导用户去勾选，可列表里
+    根本没有 BarKit，于是「指引还是不行」）。显式调一次 ``CGRequestListenEventAccess``
+    才会注册身份并弹出系统授权框。
+
+    已授权 / 已拒绝都不会再弹（系统每 App 只问一次），返回当前是否已授予。
+    """
+    if not _CG_OK:
+        return False
+    request = getattr(Quartz, "CGRequestListenEventAccess", None)
+    if request is None:
+        return False
+    try:
+        return bool(request())
+    except Exception:  # noqa: BLE001 —— 申请失败只意味着「没拿到」
+        return False
+
+
 def listen_event_access() -> "bool | None":
     """能否创建「只监听」的键盘事件 tap（即输入监控是否已授予）。
 

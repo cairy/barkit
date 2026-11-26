@@ -13,15 +13,30 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QRect
 
 import barkit.shell.app_shell
+from barkit.core import ax_trust
 from barkit.core.config import Config
 from barkit.core.events import EventBus
 from barkit.core.heartbeat import Heartbeat
 from barkit.core.registry import Registry
 from barkit.core.scheduler import Scheduler
 from barkit.shell.app_shell import FRAMEWORK_NOTIFY_ID, AppShell
+
+
+@pytest.fixture(autouse=True)
+def _no_bluetooth_permission_spawn(monkeypatch):
+    """装配 / 冒烟测试里不许真的拉起蓝牙助手。
+
+    ``bt_guard`` 第一轮 tick 会「读一次电源状态」来提前拿授权 —— 真跑起来会在这台开发机
+    上弹出系统蓝牙授权框，还会 ``open`` 一个进程。单测里换桩，需要验它的用例自己覆盖。
+    """
+    from barkit.plugins.bt_guard import bt_state
+
+    monkeypatch.setattr(bt_state, "request_permission",
+                        lambda **kw: (True, "已就绪（测试桩）"))
 
 
 def _core(tmp_path):
@@ -159,8 +174,27 @@ def test_hotkey_permission_notice_is_delivered(qapp, tmp_path):
     plugin_id, request = hub.sent[0]
     assert plugin_id == FRAMEWORK_NOTIFY_ID, "框架通知必须走框架的归属 id"
     assert [a.label for a in request.actions] == ["去授权"]
-    assert "输入监控" in request.body and "辅助功能" in request.body
+    assert "输入监控" in request.body
+    # 列表里常常没有 BarKit（没申请过就不入列）—— 正文必须给出「+」这条兜底
+    assert "「+」" in request.body
     scheduler.stop_all()
+
+
+def test_open_hotkey_privacy_requests_before_showing_the_pane(qapp, monkeypatch):
+    """通知上的「去授权」必须**先申请**再开面板。
+
+    不申请，BarKit 不会出现在「输入监控」列表里 —— 2026-11-26 用户点了「去授权」，
+    打开的面板里根本没有 BarKit，「指引还是不行」。
+    """
+    calls: list[str] = []
+    monkeypatch.setattr(ax_trust, "request_listen_access",
+                        lambda: calls.append("request") or False)
+    monkeypatch.setattr(ax_trust, "open_input_monitoring_pane",
+                        lambda: calls.append("open"))
+
+    shell = AppShell(qapp)
+    shell._open_hotkey_privacy_pane()
+    assert calls == ["request", "open"]
 
 
 def test_no_permission_notice_when_nothing_wants_a_hotkey(qapp, tmp_path):

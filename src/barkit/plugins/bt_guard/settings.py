@@ -15,9 +15,11 @@
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from barkit.plugins.bt_guard import bt_state
 from barkit.shell.ui_kit import (
@@ -27,6 +29,7 @@ from barkit.shell.ui_kit import (
     note,
     settings_page_shell,
     settings_section,
+    tool_button,
 )
 
 if TYPE_CHECKING:
@@ -37,6 +40,27 @@ if TYPE_CHECKING:
 #: 用 ``setMinimumWidth`` 而不是 ``setFixedWidth``：设备名有长有短，钉死宽度会把长名字
 #: 截掉；给最小值则短名单至少不至于缩成一个看不出内容的小方块。
 DEVICE_COMBO_MIN_W = 240
+
+
+class _PermissionRequester(QObject):
+    """把「申请蓝牙权限」放到后台线程跑。
+
+    为什么要线程：申请要拉起助手并等系统授权框，用户不点就一直等（最长一个回执窗）。
+    放在 UI 线程上，那段时间设置窗是「转菊花」的 —— 而弹窗本身在 tccd 那边，跟我们的
+    卡死毫无关系。信号回主线程再写结果，Qt 的默认连接语义保证槽在本线程执行。
+    """
+
+    done = Signal(str)
+
+    def ask(self, plugin: "Plugin") -> None:
+        def _run() -> None:
+            try:
+                text = plugin.request_bluetooth_permission()
+            except Exception:  # noqa: BLE001 —— 后台线程里炸了不能让按钮永远禁用
+                text = "申请蓝牙权限失败，详见日志"
+            self.done.emit(text)
+
+        threading.Thread(target=_run, name="bt-permission-ask", daemon=True).start()
 
 
 def _fill_devices(combo: ComboField, plugin: "Plugin") -> None:
@@ -111,6 +135,39 @@ def build_page(plugin: "Plugin") -> QWidget:
         card2,
     ))
     layout.addWidget(card2)
+
+    # ---------- 卡 3：蓝牙权限（提前申请） ----------
+    card3, content3 = settings_section("蓝牙权限", parent=page)
+    content3.addWidget(note(
+        "系统只在<b>第一次真正操作蓝牙</b>时才弹授权框。要是等到鼠标已经掉了才弹，"
+        "那个框正好落在抢救的那 20 秒里 —— 人来不及点，这一次就白等。"
+        "这里先申请一次：它只读一次电源状态，不会断开任何设备。",
+        card3,
+    ))
+    ask_row = QHBoxLayout()
+    ask_btn = tool_button("现在申请蓝牙权限", "primary", parent=card3)
+    ask_row.addWidget(ask_btn)
+    ask_row.addStretch(1)
+    content3.addLayout(ask_row)
+    result = note("", card3)
+    content3.addWidget(result)
+
+    # 申请要等系统弹窗（可能一直等到用户点）：放后台线程，别冻住设置窗
+    worker = _PermissionRequester(page)
+
+    def _on_result(text: str) -> None:
+        result.setText(text)
+        ask_btn.setEnabled(True)
+
+    worker.done.connect(_on_result)
+
+    def _ask() -> None:
+        ask_btn.setEnabled(False)
+        result.setText("已发起申请：若系统弹出授权框，请点「允许」。")
+        worker.ask(plugin)
+
+    ask_btn.clicked.connect(_ask)
+    layout.addWidget(card3)
 
     layout.addStretch(1)
     return page

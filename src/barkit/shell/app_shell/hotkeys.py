@@ -362,16 +362,30 @@ class _HotkeyMixin:
             NotificationRequest,
         )
 
-        # 按钮 → 打开「输入监控」面板（真正卡住热键的是这一项；辅助功能那句写进正文）
+        # 按钮 → **先申请再打开**「输入监控」面板（真正卡住热键的是这一项）。
+        # 只打开面板是不够的：没申请过的 App 不会出现在那份列表里，用户看到的是空名单
+        # —— 这正是 2026-11-26「点了去授权、还是不行」的原因。
         FRAMEWORK_NOTIFY_ROUTER.register(
-            self._HOTKEY_PRIVACY_ACTION, ax_trust.open_input_monitoring_pane
+            self._HOTKEY_PRIVACY_ACTION, self._open_hotkey_privacy_pane
         )
         ok = hub.send(FRAMEWORK_NOTIFY_ID, NotificationRequest(
             key="framework.hotkeys.permission",
             title="全局快捷键没有生效",
-            body="缺少「输入监控」或「辅助功能」权限，快捷键按下去没有反应。"
-                 "点「去授权」勾上 BarKit，然后重启 BarKit。",
+            body="缺少「输入监控」权限，快捷键按下去没有反应。点「去授权」："
+                 "若列表里没有 BarKit，点列表下方的「+」添加 /Applications/BarKit.app；"
+                 "勾上后重启 BarKit 生效。",
             actions=(NotificationAction(self._HOTKEY_PRIVACY_ACTION, "去授权"),),
         ))
         log.info("热键未挂上（%d 条），已%s系统通知引导授权",
                  len(failures), "" if ok else "尝试")
+
+    def _open_hotkey_privacy_pane(self) -> None:
+        """通知上的「去授权」：先**申请**一次，再把「输入监控」面板摆到前面。
+
+        申请那一下是必需的（见 ``ax_trust.request_listen_access``）：它把 BarKit 注册
+        进列表并弹出系统授权框；少了它，用户只会对着空名单发愣。
+        """
+        granted = ax_trust.request_listen_access()
+        ax_trust.open_input_monitoring_pane()
+        if granted:
+            log.info("输入监控已授权；重启 BarKit 后热键生效")

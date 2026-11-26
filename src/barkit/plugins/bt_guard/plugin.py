@@ -173,6 +173,11 @@ WAKE_HID_PATIENCE_S = 7.0
 #: 大头），所以实际每轮约 0.85 秒 —— 7 秒的窗里落得下八次左右。
 WAKE_HID_RETRY_GAP_S = 0.5
 
+#: 启动期「申请蓝牙授权」时等助手回执的上限（秒）。
+#: 正常已授权：1 秒内回来。未授权：系统授权框会一直挂着，用户不点就一直等 ——
+#: 所以给一个上限，到点就放弃（下一次启动再试），别把 worker 钉死。
+PERMISSION_WAIT_S = 15.0
+
 #: 需要弹通知的取值 → (标题, 正文, 按钮)。**只有「修不好」才打扰用户**：
 #: 自动修好了就该安静（用户要的是鼠标能用，不是一条「我修好了」的通知）。
 _ALERTS: dict[str, tuple[str, str, tuple[NotificationAction, ...]]] = {
@@ -199,6 +204,9 @@ class Plugin(NotifyCapability):
     def __init__(self, ctx) -> None:
         super().__init__(ctx)
         self._last: bt_state.Snapshot | None = None
+        #: 本进程是否已做过「启动期蓝牙授权检查」。**只做一次**：授权按助手身份记，
+        #: 之后不再弹；每拍都跑等于每拍拉起一次助手（白费 1 秒）。
+        self._permission_checked = False
         #: 最近一次广播出去的取值（用于日志对比，不参与判断）。
         self._state = "unknown"
         #: 两个事件标志。**不能用单槽**：睡眠事件与唤醒事件可能挤进同一轮 tick
@@ -319,6 +327,16 @@ class Plugin(NotifyCapability):
         """
         self.mark_dirty("start")
 
+    def request_bluetooth_permission(self) -> str:
+        """**提前**申请蓝牙授权（设置页那颗按钮的落点），返回一句给人看的话。
+
+        为什么要提前：授权框只在第一次真正碰蓝牙时弹，而那时通常正是「鼠标已经掉了、
+        正在 20 秒闸门里抢救」—— 人来不及点。读一次电源状态即可把授权先拿到手，
+        全程不写电源、不断设备。
+        """
+        _ok, detail = bt_state.request_permission()
+        return detail
+
     def tick(self) -> StateReport:
         """每轮执行体。跑在框架给本组件单开的 worker 线程里。
 
@@ -331,7 +349,26 @@ class Plugin(NotifyCapability):
         report = self._evaluate(slept=slept, woke=woke, manual=manual)
         self._state = report.state
         self._maybe_notify(report.state)
+        # 放在末尾：首屏结论先发出去，申请授权哪怕等用户点也不拖这轮的显示
+        self._ensure_permission_once()
         return report
+
+    def _ensure_permission_once(self) -> None:
+        """启动第一轮把蓝牙授权**先拿到手**（2026-11-26 用户：不能等断线了才申请）。
+
+        做法是「读一次电源状态」：它走与 ``power-off`` 同一个私有 API 入口，所以同样
+        触发系统授权框，但**不写电源、不断任何设备**。授权按助手身份记，之后不再弹；
+        因此本进程只做一次，每拍都做等于每拍白拉一次助手。
+        """
+        if self._permission_checked:
+            return
+        self._permission_checked = True
+        try:
+            _ok, detail = bt_state.request_permission(reply_wait_s=PERMISSION_WAIT_S)
+        except Exception:  # noqa: BLE001 —— 申请失败不影响看护本身
+            log.exception("启动期申请蓝牙权限失败")
+            return
+        log.info("启动期蓝牙授权检查：%s", detail)
 
     # ---------- 事件（只登记意图，活留给 tick）----------
 

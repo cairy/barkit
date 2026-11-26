@@ -2238,6 +2238,64 @@ def test_permission_actions_are_plain_page_buttons(qtbot, monkeypatch):
     assert win._permissions_feedback.text() == settings.ACCESSIBILITY_GUIDE
 
 
+def test_input_monitoring_requests_before_opening_the_pane(qtbot, monkeypatch):
+    """输入监控：未授权时**先申请**再开面板。
+
+    只开面板是不够的 —— 没申请过的 App 不会出现在「输入监控」列表里，用户看到的
+    是一张空名单（2026-11-26 现场：「点了去授权、还是不行」）。
+    """
+    calls: list[str] = []
+    monkeypatch.setattr(settings_maintenance, "listen_event_access", lambda: False)
+    monkeypatch.setattr(settings_maintenance, "request_listen_access",
+                        lambda: calls.append("request") or False)
+    monkeypatch.setattr(settings_maintenance, "open_input_monitoring_pane",
+                        lambda: calls.append("open"))
+
+    win = SettingsWindow(parent=None, registry=_FakeContrib([]))
+    qtbot.add_widget(win)
+    win.select_page("维护")
+
+    win._check_input_monitoring()
+    assert calls == ["request", "open"], "没申请过就开面板，列表里不会有 BarKit"
+    assert "输入监控" in win._permissions_feedback.text()
+
+
+def test_input_monitoring_granted_case_says_restart(qtbot, monkeypatch):
+    """已授权：不申请、不跳设置，只提示「重启一次」。"""
+    calls: list[str] = []
+    monkeypatch.setattr(settings_maintenance, "listen_event_access", lambda: True)
+    monkeypatch.setattr(settings_maintenance, "request_listen_access",
+                        lambda: calls.append("request") or True)
+    monkeypatch.setattr(settings_maintenance, "open_input_monitoring_pane",
+                        lambda: calls.append("open"))
+
+    win = SettingsWindow(parent=None, registry=_FakeContrib([]))
+    qtbot.add_widget(win)
+    win.select_page("维护")
+
+    win._check_input_monitoring()
+    assert calls == []
+    assert "已授予" in win._permissions_feedback.text()
+
+
+def test_input_monitoring_request_accepted_reports_restart(qtbot, monkeypatch):
+    """申请当场通过（用户点了允许）：不跳设置，直接说下一步要重启。"""
+    calls: list[str] = []
+    monkeypatch.setattr(settings_maintenance, "listen_event_access", lambda: False)
+    monkeypatch.setattr(settings_maintenance, "request_listen_access",
+                        lambda: calls.append("request") or True)
+    monkeypatch.setattr(settings_maintenance, "open_input_monitoring_pane",
+                        lambda: calls.append("open"))
+
+    win = SettingsWindow(parent=None, registry=_FakeContrib([]))
+    qtbot.add_widget(win)
+    win.select_page("维护")
+
+    win._check_input_monitoring()
+    assert calls == ["request"]
+    assert "重启" in win._permissions_feedback.text()
+
+
 def test_forget_permissions_feedback_only_clears_its_own_slot(qtbot):
     """页面重建：旧槽位的销毁回调不得把**新**槽位一起摘掉。"""
     win = SettingsWindow(parent=None, registry=_FakeContrib([]))

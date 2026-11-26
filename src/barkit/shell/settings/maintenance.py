@@ -13,6 +13,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from barkit.core.ax_trust import (
+    listen_event_access,
+    open_input_monitoring_pane,
+    request_listen_access,
+)
 from barkit.core.permissions import (
     ACCESSIBILITY_GUIDE,
     accessibility_trusted,
@@ -245,6 +250,24 @@ class _MaintenanceMixin:
             act_row.addWidget(btn)
         act_row.addStretch(1)
         lay.addLayout(act_row)
+
+        # 「输入监控」是**另一项** TCC 服务：全局热键用的是只监听的键盘 tap，归它管，
+        # 与辅助功能互不相干。2026-11-26 现场：热键全静默，用户按指引去辅助功能里勾了
+        # 一圈也没用 —— 那份列表里根本没有 BarKit（不申请就不入列），所以这一组必须
+        # 同时给出「申请」这一步（`_check_input_monitoring` 里调 request）。
+        lay.addWidget(note(
+            "全局快捷键另需「输入监控」授权（只监听、不拦截按键）；勾选后要重启 BarKit。",
+            card,
+        ))
+        hotkey_row = QHBoxLayout()
+        check_hotkey = tool_button("检查输入监控权限", "primary", parent=card)
+        _wire_button(check_hotkey, self._check_input_monitoring, self._say_permission)
+        open_hotkey = tool_button("打开输入监控设置", "pill-ghost", parent=card)
+        _wire_button(open_hotkey, self._open_input_monitoring_pane, self._say_permission)
+        for btn in (check_hotkey, open_hotkey):
+            hotkey_row.addWidget(btn)
+        hotkey_row.addStretch(1)
+        lay.addLayout(hotkey_row)
 
         # 槽紧跟在两个动作下面：点了按钮，消息就出现在手边
         fb = FeedbackBar(card)
@@ -504,6 +527,35 @@ class _MaintenanceMixin:
         self._say_permission(
             "已打开系统设置「辅助功能」面板，请在列表里勾选运行 BarKit 的程序。"
         )
+
+    def _check_input_monitoring(self) -> None:
+        """探测「输入监控」；未授予时**顺手申请一次**再把用户送到面板。
+
+        申请那一步不能省：不申请，BarKit 根本不会出现在「输入监控」列表里
+        （见 ``ax_trust.request_listen_access``），用户点开只会看到一张空名单。
+        """
+        access = listen_event_access()
+        if access is None:
+            self._say_permission(
+                "问不出输入监控授权状态：本机没有预检 API。", error=True
+            )
+            return
+        if access:
+            self._say_permission("输入监控权限已授予；若热键仍不响，重启 BarKit 一次。")
+            return
+        if request_listen_access():
+            self._say_permission("已获得输入监控权限，重启 BarKit 后热键生效。")
+            return
+        open_input_monitoring_pane()
+        self._say_permission(
+            "未授予输入监控：已打开系统设置，在「输入监控」列表里勾上 BarKit"
+            "（列表里没有就点「+」添加 /Applications/BarKit.app），然后重启 BarKit。"
+        )
+
+    def _open_input_monitoring_pane(self) -> None:
+        """打开系统设置 →「隐私与安全性」→「输入监控」。"""
+        open_input_monitoring_pane()
+        self._say_permission("已打开系统设置「输入监控」面板，勾选 BarKit 后重启生效。")
 
     def _request_accessibility(self) -> None:
         """触发系统授权弹窗（**每进程首次调用才弹**），随后复探一次状态。

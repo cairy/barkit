@@ -67,6 +67,8 @@ from barkit.core.power import (
     POWER_SLEEP_TOPIC,
     POWER_WAKE_TOPIC,
 )
+from PySide6.QtWidgets import QPushButton
+
 from barkit.plugins.bt_guard import bt_session, bt_state
 from barkit.plugins.bt_guard import plugin as plugin_mod
 from barkit.shell.ui_kit import ComboField, Switch
@@ -254,6 +256,10 @@ def build(tmp_path, monkeypatch):
     """
     monkeypatch.setattr(plugin_mod, "WAKE_HID_PATIENCE_S", 0.0)
     rig = _Rig(monkeypatch)
+    # 启动期「申请蓝牙授权」在真机上会拉起助手并弹系统框 —— 单测里换成桩，
+    # 免得跑一次测试就在开发机上开一次蓝牙授权窗（需要验它的用例自己覆盖）。
+    monkeypatch.setattr(bt_state, "request_permission",
+                        lambda **kw: (True, "已就绪（测试桩）"))
 
     def factory(config_extra: str | None = None, hub=None, dirty=None):
         user = tmp_path / "config.yaml"
@@ -1586,6 +1592,55 @@ def test_settings_page_offers_the_paired_devices_and_selects_the_configured_one(
     assert any("MX Master 3S" in t for t in labels)
     assert any("我的 iPad" in t for t in labels)
     assert combo.currentData() == MOUSE
+
+
+def test_request_permission_reads_power_only(monkeypatch):
+    """提前申请只许跑 ``power``（只读）—— 绝不碰 ``power-off``。
+
+    授权框原本只能在「鼠标已经掉了、正在 20 秒闸门里抢救」那一刻弹，人来不及点；
+    读一次电源状态就能把授权先拿到手，而读不会断开任何设备。
+    """
+    calls: list = []
+    monkeypatch.setattr(bt_state.bt_session, "run_commands",
+                        lambda cmds, **kw: calls.append(list(cmds)) or [{"code": 0}])
+    monkeypatch.setattr(bt_state, "spawn_helper", lambda: True)
+
+    ok, text = bt_state.request_permission()
+    assert calls == [["power"]], "提前申请必须只读电源"
+    assert ok is True
+    assert "就绪" in text
+
+
+def test_first_tick_requests_permission_exactly_once(build, monkeypatch):
+    """启动第一轮就把授权拿到手，且**只做一次**（每拍都做等于每拍白拉一次助手）。
+
+    2026-11-26 用户的原始诉求：授权不能等鼠标掉了才弹 —— 那个框正好落在 20 秒闸门里。
+    """
+    calls: list[int] = []
+    monkeypatch.setattr(bt_state, "request_permission",
+                        lambda **kw: calls.append(1) or (True, "已就绪"))
+
+    plugin = build()
+    plugin.tick()
+    plugin.tick()
+    plugin.tick()
+    assert calls == [1]
+
+
+def test_request_permission_reports_a_refusal(monkeypatch):
+    """用户拒绝 / 弹窗没响应：如实说「没拿到」，不许假装成功。"""
+    monkeypatch.setattr(bt_state.bt_session, "run_commands", lambda cmds, **kw: [None])
+
+    ok, text = bt_state.request_permission()
+    assert ok is False
+    assert "没拿到" in text
+
+
+def test_settings_page_exposes_the_permission_request(page):
+    """设置页要有一枚「现在申请蓝牙权限」—— 用户得有个地方提前把授权做掉。"""
+    _plugin, widget = page
+    buttons = [b.text() for b in widget.findChildren(QPushButton)]
+    assert any("申请蓝牙权限" in t for t in buttons)
 
 
 def test_settings_page_picking_another_device_writes_it_through(page):

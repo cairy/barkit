@@ -352,6 +352,32 @@ def ensure_executable(root: Path | None = None) -> bool:
         return False
 
 
+def request_permission(reply_wait_s: float = 25.0) -> "tuple[bool, str]":
+    """提前把「蓝牙」授权拿到手：**只读**一次控制器电源状态，不动电源。
+
+    为什么要有这一步（2026-11-26 用户提问「不能提前申请吗」）：授权原本只在「鼠标
+    已经掉了、正在抢救」的那一刻才弹 —— 系统框正好落在 20 秒闸门里，人来不及点，
+    这一次就判失败，下次醒来还得重来。蓝牙授权是**按 App 身份一次性**的
+    （``com.barkit.bt-helper``），先申请一次，以后都不再弹。
+
+    读 ``power`` 就够触发授权：它和 ``power-off`` 走同一个私有 API 入口，区别只是
+    **不写**电源状态，所以不会闪断任何设备。返回 ``(是否已拿到, 一句人话)``。
+    """
+    try:
+        replies = bt_session.run_commands(
+            ["power"], spawn=spawn_helper, reply_wait_s=reply_wait_s
+        )
+    except Exception:  # noqa: BLE001 —— 申请失败不该把设置页 / 启动流程弄崩
+        log.exception("申请蓝牙权限时出错")
+        return (False, "申请蓝牙权限时出错，详见日志")
+    reply = replies[0] if replies else None
+    if reply is not None and reply.get("code") == 0:
+        log.info("蓝牙权限已就绪（只读了一次电源状态，未改动电源）")
+        return (True, "蓝牙权限已就绪。")
+    log.warning("蓝牙权限未拿到：%s", reply)
+    return (False, "没拿到蓝牙权限：系统弹窗被拒绝或没有响应，可再点一次。")
+
+
 def spawn_helper() -> bool:
     """经 ``open`` 把**用户域副本**拉起来。返回是否成功「发起了拉起」。
 
