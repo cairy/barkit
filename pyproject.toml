@@ -1,6 +1,6 @@
 [project]
 name = "barkit"
-version = "0.1.7"
+version = "0.1.8"
 description = "macOS 菜单栏常驻个人工具集：OCR/条码识别、通知守卫、自动路由、一键输入"
 readme = "README.md"
 license = "MIT"

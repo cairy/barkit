@@ -651,9 +651,13 @@ class Plugin(NotifyCapability):
         lines.append("")
 
         lines.append("## 助手")
-        app = bt_state.app_path()
+        src = bt_state.app_path()
+        app = bt_state.installed_path()
         binary = app / "Contents" / "MacOS" / "bt-helper"
-        lines.append(f"  路径 = {app}")
+        lines.append(f"  随包源 = {src}（存在 = {src.is_dir()}）")
+        # 启动的是**用户域副本**：包内那份嵌在 BarKit.app 里不会被 LaunchServices 注册，
+        # TCC 读不到蓝牙用途说明 —— 直接启动会 SIGABRT（见 bt_state.installed_path）
+        lines.append(f"  运行副本 = {app}")
         lines.append(f"  存在 = {app.is_dir()}    主二进制 = {binary.is_file()}")
         lines.append("  可执行位 = "
                      + (str(bool(binary.stat().st_mode & 0o111))

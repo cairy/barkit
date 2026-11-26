@@ -91,5 +91,12 @@ app = BUNDLE(
         "LSMinimumSystemVersion": "12.0",
         "CFBundleShortVersionString": VERSION,
         "CFBundleVersion": VERSION,
+        # 蓝牙用途说明：主进程自己不调蓝牙 API（读设备走 system_profiler），但 TCC 判定
+        # 「被拉起的助手能不能用蓝牙」时可能按**负责进程**（＝ 本 .app）查这份声明 ——
+        # 缺了它，助手调私有 API 那一刻就 SIGABRT（崩溃报告 termination namespace=TCC）。
+        # 助手自己的 .app 也带同一句，两边都写是刻意的。
+        "NSBluetoothAlwaysUsageDescription": (
+            "用于在唤醒后确认蓝牙设备是否在线，必要时重开一次蓝牙控制器把它带回来。"
+        ),
     },
 )

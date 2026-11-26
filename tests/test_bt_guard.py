@@ -1172,9 +1172,8 @@ def test_ensure_executable_restores_a_stripped_bit(monkeypatch, tmp_path):
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\n", encoding="utf-8")
     binary.chmod(0o644)
-    monkeypatch.setattr(bt_state, "app_path", lambda: app)
 
-    assert bt_state.ensure_executable() is True
+    assert bt_state.ensure_executable(app) is True
     assert binary.stat().st_mode & 0o111
 
 
@@ -1185,14 +1184,36 @@ def test_ensure_executable_does_not_touch_a_binary_that_already_has_the_bit(
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\n", encoding="utf-8")
     binary.chmod(0o755)
-    monkeypatch.setattr(bt_state, "app_path", lambda: app)
-    assert bt_state.ensure_executable() is True
+    assert bt_state.ensure_executable(app) is True
     assert binary.stat().st_mode & 0o111
 
 
 def test_ensure_executable_reports_false_when_the_helper_is_missing(monkeypatch, tmp_path):
-    monkeypatch.setattr(bt_state, "app_path", lambda: tmp_path / "nope.app")
-    assert bt_state.ensure_executable() is False
+    assert bt_state.ensure_executable(tmp_path / "nope.app") is False
+
+
+def test_helper_is_installed_outside_the_app_bundle(tmp_path, monkeypatch):
+    """助手必须先复制到**用户域**再启动（2026-11-26 现场）。
+
+    嵌在 ``BarKit.app`` 里的 ``.app`` 不会被 LaunchServices 注册，TCC 读不到蓝牙
+    用途说明 ⇒ 助手一调私有 API 就 SIGABRT（崩溃报告 termination namespace=TCC）。
+    这里锁两条：副本落在 ``APP_SUPPORT`` 而不是包内；源/目的地是两份不同路径。
+    """
+    src = tmp_path / "resources" / "BTHelper.app"
+    (src / "Contents" / "MacOS").mkdir(parents=True)
+    (src / "Contents" / "Info.plist").write_text("<plist/>", encoding="utf-8")
+    (src / "Contents" / "MacOS" / "bt-helper").write_bytes(b"fake")
+    installed = tmp_path / "support" / "BTHelper.app"
+    monkeypatch.setattr(bt_state, "app_path", lambda: src)
+    monkeypatch.setattr(bt_state, "installed_path", lambda: installed)
+    monkeypatch.setattr(paths, "APP_SUPPORT", tmp_path / "support")
+
+    assert bt_state.ensure_installed() is True
+    assert (installed / "Contents" / "MacOS" / "bt-helper").is_file()
+    assert installed != src
+    # 第二次是幂等的（指纹命中，不重拷）：把副本标记改掉再装，内容仍应与源一致
+    assert bt_state.ensure_installed() is True
+    assert (installed / "Contents" / "MacOS" / "bt-helper").read_bytes() == b"fake"
 
 
 def test_helper_session_runs_every_command_over_one_session(helper):

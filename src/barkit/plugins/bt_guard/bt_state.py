@@ -23,11 +23,13 @@ from __future__ import annotations
 import json
 import logging
 import plistlib
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from barkit import paths
 from barkit.core.log_throttle import log_throttled
 
 from . import bt_session
@@ -259,20 +261,87 @@ def paired_devices() -> list[tuple[str, str]]:
 # 助手（唯一的写路径）
 # ──────────────────────────────────────────────
 
+#: 助手的目录名（包内源码那份与用户域副本同名）。
+INSTALLED_NAME = "BTHelper.app"
+
+#: 副本的源指纹落点。**必须放在 bundle 外面**：往 ``.app`` 里加任何文件都会破坏
+#: 签名封印，而这份助手的签名（含 Info.plist 里的蓝牙用途说明）正是它能调私有 API
+#: 的前提 —— 指纹文件写进去就等于把助手废掉。
+FINGERPRINT_FILE = ".BTHelper.source"
+
+
 def app_path() -> Path:
-    """助手 ``.app`` 的绝对路径：就在本插件包的 ``resources/`` 下，随包分发。"""
-    return Path(__file__).resolve().parent / "resources" / "BTHelper.app"
+    """**随包**那份助手（只读源；不直接启动）。"""
+    return Path(__file__).resolve().parent / "resources" / INSTALLED_NAME
 
 
-def ensure_executable() -> bool:
-    """确保助手主二进制带可执行位；缺了就地补上。
+def installed_path() -> Path:
+    """用户域里的**可启动副本**（``open`` 的对象）。
+
+    为什么不直接启动包里那份（2026-11-26 现场＋崩溃报告）：TCC 的蓝牙用途说明只能从
+    「一个正经 App bundle」上读到，而嵌在 ``BarKit.app`` 内部的 ``.app`` 不会被
+    LaunchServices 注册 —— 助手一连上会话、调私有 API 就 SIGABRT，termination 写着
+    「缺 NSBluetoothAlwaysUsageDescription」，可那份 Info.plist 里明明有、签名里也
+    嵌着（逐字节对比过源码版与包内版：完全一致）。源码运行没事，只因为那份 ``.app``
+    躺在仓库里、不在别的 bundle 内。所以：**复制到用户域再启动**。
+    """
+    return paths.APP_SUPPORT / INSTALLED_NAME
+
+
+def _binary_of(root: Path) -> Path:
+    return root / "Contents" / "MacOS" / "bt-helper"
+
+
+def _fingerprint(root: Path) -> str:
+    """副本的源指纹：主二进制大小/时间 ＋ Info.plist 大小。
+
+    只看 stat 不算哈希：这段跑在「每次动手之前」，而重新构建过的话二进制必然变，
+    三项足够敏感；全量哈希 80KB 也不贵，但没必要。
+    """
+    try:
+        st = _binary_of(root).stat()
+        return f"{st.st_size}:{st.st_mtime_ns}:{(root / 'Contents' / 'Info.plist').stat().st_size}"
+    except OSError:
+        return ""
+
+
+def ensure_installed() -> bool:
+    """把助手复制到用户域（源变了才复制）。返回副本是否就绪。
+
+    **复制而不是软链**：TCC 认的是 bundle 路径与签名，软链会让它解析回包内那个
+    「没被注册的」路径，等于没搬。
+    """
+    src, dst = app_path(), installed_path()
+    if not src.is_dir():
+        log.error("随包助手缺失，无法安装：%s", src)
+        return False
+    want = _fingerprint(src)
+    marker = paths.APP_SUPPORT / FINGERPRINT_FILE
+    try:
+        if want and dst.is_dir() and marker.is_file() and marker.read_text(encoding="utf-8") == want:
+            return ensure_executable(dst)
+        tmp = dst.with_name(INSTALLED_NAME + ".tmp")
+        shutil.rmtree(tmp, ignore_errors=True)
+        shutil.copytree(src, tmp)
+        shutil.rmtree(dst, ignore_errors=True)
+        tmp.rename(dst)
+        marker.write_text(want, encoding="utf-8")
+    except OSError:
+        log.exception("安装蓝牙助手到用户域失败：%s → %s", src, dst)
+        return False
+    log.info("蓝牙助手已安装到用户域：%s", dst)
+    return ensure_executable(dst)
+
+
+def ensure_executable(root: Path | None = None) -> bool:
+    """确保助手主二进制带可执行位；缺了就地补上（默认作用于用户域副本）。
 
     **为什么需要这一步**：wheel 打包会静默丢掉可执行位 —— 实测 zip 条目里**记着**
     ``0o100755``，解出来落盘却是 ``0o644``。本机是开发态安装（直接指向源码目录），
-    所以看不出来；真装到别的机器上就是「助手起不来」。文件在这个目录里归用户所有，
-    补权限免 root；签名覆盖的是**内容**而不是权限位，所以改权限不会让签名失效。
+    所以看不出来；真装到别的机器上就是「助手起不来」。文件归用户所有，补权限免 root；
+    签名覆盖的是**内容**而不是权限位，所以改权限不会让签名失效。
     """
-    binary = app_path() / "Contents" / "MacOS" / "bt-helper"
+    binary = _binary_of(root or installed_path())
     try:
         if binary.stat().st_mode & 0o111:
             return True
@@ -284,7 +353,7 @@ def ensure_executable() -> bool:
 
 
 def spawn_helper() -> bool:
-    """经 ``open`` 把助手 ``.app`` 拉起来。返回是否成功「发起了拉起」。
+    """经 ``open`` 把**用户域副本**拉起来。返回是否成功「发起了拉起」。
 
     **不能直接 exec 它里面那个二进制**：蓝牙私有 API 认的是「躺在 bundle 里、且经
     LaunchServices 拉起」这个身份，直接 exec 会 SIGABRT（``resources/README.md``
@@ -294,12 +363,13 @@ def spawn_helper() -> bool:
     **顺序要紧**：调用方必须先建好会话节点再调本函数（``bt_session`` 是这么做的）。
     反过来的话助手一起来就 connect，而此刻没人在 listen —— 它只重试 5 秒。
     """
-    if not ensure_executable():
+    if not ensure_installed():
         return False
+    target = installed_path()
     try:
-        subprocess.run([OPEN, "-n", str(app_path())], check=False, timeout=10)
+        subprocess.run([OPEN, "-n", str(target)], check=False, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
-        log.exception("拉起蓝牙助手失败：%s", app_path())
+        log.exception("拉起蓝牙助手失败：%s", target)
         return False
     return True
 
